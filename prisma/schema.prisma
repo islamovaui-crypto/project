@@ -1,0 +1,137 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model GcUser {
+  id        String   @id // GetCourse user ID
+  email     String?
+  phone     String?
+  firstName String?
+  lastName  String?
+  city      String?
+  country   String?
+  groups    String[] // GetCourse group IDs
+  tags      String[]
+  addfields Json? // custom fields
+  gcCreatedAt DateTime?
+  syncedAt  DateTime @default(now())
+
+  orders         Order[]
+  lessonProgress LessonProgress[]
+  surveyAnswers  SurveyAnswer[]
+
+  @@map("gc_users")
+}
+
+model Product {
+  id   String  @id // GetCourse offer code or product ID
+  name String
+  gcId String?
+
+  orders         Order[]
+  lessonProgress LessonProgress[]
+  surveys        Survey[]
+
+  @@map("products")
+}
+
+model Order {
+  id           String    @id // GetCourse deal ID
+  dealNumber   String?
+  userId       String
+  productId    String?
+  productTitle String?
+  amount       Float?
+  status       String // new, payed, cancelled, etc.
+  isPaid       Boolean   @default(false)
+  managerEmail String?
+  utmSource    String?
+  utmMedium    String?
+  utmCampaign  String?
+  gcCreatedAt  DateTime?
+  paidAt       DateTime?
+  syncedAt     DateTime  @default(now())
+
+  user    GcUser   @relation(fields: [userId], references: [id])
+  product Product? @relation(fields: [productId], references: [id])
+
+  @@map("orders")
+}
+
+model LessonProgress {
+  id           String    @id @default(cuid())
+  userId       String
+  productId    String?
+  lessonId     String
+  lessonTitle  String?
+  opened       Boolean   @default(false)
+  completed    Boolean   @default(false)
+  lastActivity DateTime?
+  source       String    @default("webhook") // webhook | csv
+
+  user    GcUser   @relation(fields: [userId], references: [id])
+  product Product? @relation(fields: [productId], references: [id])
+
+  @@unique([userId, lessonId])
+  @@map("lesson_progress")
+}
+
+model Survey {
+  id        String  @id @default(cuid())
+  gcId      String  @unique // GetCourse survey/questionnaire ID
+  name      String
+  productId String?
+  type      String  @default("onboarding") // onboarding | in-lesson
+
+  product Product?       @relation(fields: [productId], references: [id])
+  answers SurveyAnswer[]
+
+  @@map("surveys")
+}
+
+model SurveyAnswer {
+  id         String    @id @default(cuid())
+  surveyId   String
+  userId     String
+  questionId String
+  question   String?
+  answer     String?
+  answeredAt DateTime?
+  source     String    @default("webhook") // webhook | csv
+
+  survey Survey @relation(fields: [surveyId], references: [id])
+  user   GcUser @relation(fields: [userId], references: [id])
+
+  @@unique([surveyId, userId, questionId])
+  @@map("survey_answers")
+}
+
+model ExcludedAccount {
+  id        String   @id @default(cuid())
+  userId    String? // GetCourse user ID
+  email     String?
+  tag       String? // exclude by tag
+  groupId   String? // exclude by GetCourse group ID
+  reason    String?
+  createdAt DateTime @default(now())
+
+  @@map("excluded_accounts")
+}
+
+model SyncLog {
+  id            String    @id @default(cuid())
+  startedAt     DateTime  @default(now())
+  finishedAt    DateTime?
+  status        String    @default("running") // running | success | error
+  usersCount    Int?
+  ordersCount   Int?
+  paymentsCount Int?
+  error         String?
+
+  @@map("sync_logs")
+}
