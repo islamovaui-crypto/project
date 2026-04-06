@@ -24,15 +24,15 @@ export default function InsightsBar({ productIds, syncStatus }: { productIds: st
   if (!data && !loading) return null
 
   return (
-    <div className="border-b border-gray-800 px-6 py-3 bg-gray-900/50">
+    <div className="border-b border-gray-200 px-6 py-3 bg-gray-100">
       {loading ? (
-        <p className="text-xs text-gray-500 animate-pulse">Анализирую данные...</p>
+        <p className="text-xs text-gray-400 animate-pulse">Анализирую данные...</p>
       ) : data ? (
         <div className="flex gap-6 items-start">
-          <span className="text-xs text-purple-400 font-medium whitespace-nowrap mt-0.5">✦ Инсайты</span>
+          <span className="text-xs text-purple-600 font-medium whitespace-nowrap mt-0.5">✦ Инсайты</span>
           <div className="flex flex-wrap gap-x-6 gap-y-1">
             {data.insights.map((insight, i) => (
-              <p key={i} className="text-xs text-gray-300">{insight}</p>
+              <p key={i} className="text-xs text-gray-600">{insight}</p>
             ))}
           </div>
         </div>

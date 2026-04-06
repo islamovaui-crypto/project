@@ -60,21 +60,21 @@ export default function MultiSelect({
       </button>
 
       {open && (
-        <div className="absolute top-full left-0 mt-1 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-50 min-w-[280px]">
-          <div className="p-2 border-b border-gray-700">
+        <div className="absolute top-full left-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg z-50 min-w-[280px]">
+          <div className="p-2 border-b border-gray-300">
             <input
               ref={inputRef}
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Поиск продукта..."
-              className="w-full bg-gray-900 border border-gray-600 rounded px-2 py-1.5 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500"
+              className="w-full bg-gray-50 border border-gray-300 rounded px-2 py-1.5 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-blue-500"
             />
           </div>
           {selected.length > 0 && (
             <button
               onClick={() => onChange([])}
-              className="w-full text-left px-3 py-2 text-xs text-gray-400 hover:bg-gray-700 border-b border-gray-700"
+              className="w-full text-left px-3 py-2 text-xs text-gray-500 hover:bg-gray-100 border-b border-gray-300"
             >
               Сбросить выбор
             </button>
@@ -83,7 +83,7 @@ export default function MultiSelect({
             {filtered.map((o) => (
               <label
                 key={o.id}
-                className="flex items-center gap-2 px-3 py-2 hover:bg-gray-700/50 cursor-pointer text-sm"
+                className="flex items-center gap-2 px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm"
               >
                 <input
                   type="checkbox"
@@ -91,11 +91,11 @@ export default function MultiSelect({
                   onChange={() => toggle(o.id)}
                   className="accent-blue-500 rounded"
                 />
-                <span className="text-gray-200 truncate">{o.name}</span>
+                <span className="text-gray-800 truncate">{o.name}</span>
               </label>
             ))}
             {filtered.length === 0 && (
-              <div className="px-3 py-4 text-sm text-gray-500 text-center">Ничего не найдено</div>
+              <div className="px-3 py-4 text-sm text-gray-400 text-center">Ничего не найдено</div>
             )}
           </div>
         </div>

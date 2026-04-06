@@ -66,17 +66,17 @@ export default function SurveysTab({ productIds }: { productIds: string[] }) {
       {/* Survey selector */}
       <div className="flex items-start gap-4">
         <div className="w-64 space-y-1">
-          <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Анкеты</p>
+          <p className="text-xs text-gray-400 uppercase tracking-wide mb-2">Анкеты</p>
           {surveys.length === 0 ? (
-            <p className="text-sm text-gray-500">Нет анкет. Загрузите CSV или настройте webhooks.</p>
+            <p className="text-sm text-gray-400">Нет анкет. Загрузите CSV или настройте webhooks.</p>
           ) : surveys.map((s) => (
             <button
               key={s.id}
               onClick={() => setSelectedSurvey(s)}
-              className={`w-full text-left px-3 py-2.5 rounded-lg text-sm transition-colors ${selectedSurvey?.id === s.id ? 'bg-blue-600/20 text-blue-300 border border-blue-500/30' : 'bg-gray-800/50 text-gray-300 hover:bg-gray-800'}`}
+              className={`w-full text-left px-3 py-2.5 rounded-lg text-sm transition-colors ${selectedSurvey?.id === s.id ? 'bg-blue-50 text-blue-600 border border-blue-500/30' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'}`}
             >
               <div className="font-medium">{s.name}</div>
-              <div className="text-xs text-gray-500 mt-0.5">{s._count.answers} ответов · {s.type}</div>
+              <div className="text-xs text-gray-400 mt-0.5">{s._count.answers} ответов · {s.type}</div>
             </button>
           ))}
         </div>
@@ -90,17 +90,17 @@ export default function SurveysTab({ productIds }: { productIds: string[] }) {
                   placeholder="Фильтр по ответу..."
                   value={filterAnswer}
                   onChange={(e) => setFilterAnswer(e.target.value)}
-                  className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500 w-56"
+                  className="bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-blue-500 w-56"
                 />
-                <span className="text-sm text-gray-400">{total} ответов</span>
+                <span className="text-sm text-gray-500">{total} ответов</span>
               </div>
-              <button onClick={() => downloadCSV(answers, selectedSurvey.name)} className="text-sm text-gray-400 hover:text-white border border-gray-700 hover:border-gray-500 px-3 py-2 rounded-lg transition-colors">↓ CSV</button>
+              <button onClick={() => downloadCSV(answers, selectedSurvey.name)} className="text-sm text-gray-500 hover:text-gray-900 border border-gray-300 hover:border-gray-400 px-3 py-2 rounded-lg transition-colors">↓ CSV</button>
             </div>
 
-            <div className="overflow-x-auto rounded-xl border border-gray-800">
+            <div className="overflow-x-auto rounded-xl border border-gray-200">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-gray-800 text-gray-400 text-xs uppercase tracking-wide">
+                  <tr className="border-b border-gray-200 text-gray-500 text-xs uppercase tracking-wide">
                     <th className="text-left px-4 py-3">Участник</th>
                     <th className="text-left px-4 py-3">Вопрос</th>
                     <th className="text-left px-4 py-3">Ответ</th>
@@ -109,15 +109,15 @@ export default function SurveysTab({ productIds }: { productIds: string[] }) {
                 </thead>
                 <tbody>
                   {loading ? (
-                    <tr><td colSpan={4} className="text-center py-12 text-gray-500">Загрузка...</td></tr>
+                    <tr><td colSpan={4} className="text-center py-12 text-gray-400">Загрузка...</td></tr>
                   ) : answers.length === 0 ? (
-                    <tr><td colSpan={4} className="text-center py-12 text-gray-500">Нет ответов</td></tr>
+                    <tr><td colSpan={4} className="text-center py-12 text-gray-400">Нет ответов</td></tr>
                   ) : answers.map((a) => (
-                    <tr key={a.id} className="border-b border-gray-800/50 hover:bg-gray-800/30 transition-colors">
-                      <td className="px-4 py-3 text-gray-200">{a.user?.email || a.userId}</td>
-                      <td className="px-4 py-3 text-gray-400 text-xs max-w-xs truncate">{a.question || a.questionId}</td>
-                      <td className="px-4 py-3 text-gray-200">{a.answer || '—'}</td>
-                      <td className="px-4 py-3 text-gray-400 text-xs">{a.answeredAt ? new Date(a.answeredAt).toLocaleDateString('ru-RU') : '—'}</td>
+                    <tr key={a.id} className="border-b border-gray-200 hover:bg-gray-100 transition-colors">
+                      <td className="px-4 py-3 text-gray-800">{a.user?.email || a.userId}</td>
+                      <td className="px-4 py-3 text-gray-500 text-xs max-w-xs truncate">{a.question || a.questionId}</td>
+                      <td className="px-4 py-3 text-gray-800">{a.answer || '—'}</td>
+                      <td className="px-4 py-3 text-gray-500 text-xs">{a.answeredAt ? new Date(a.answeredAt).toLocaleDateString('ru-RU') : '—'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -126,14 +126,14 @@ export default function SurveysTab({ productIds }: { productIds: string[] }) {
 
             {pages > 1 && (
               <div className="flex items-center justify-center gap-2">
-                <button disabled={page === 1} onClick={() => setPage(p => p - 1)} className="px-3 py-1.5 text-sm border border-gray-700 rounded-lg disabled:opacity-40 hover:border-gray-500 transition-colors">←</button>
-                <span className="text-sm text-gray-400">{page} / {pages}</span>
-                <button disabled={page === pages} onClick={() => setPage(p => p + 1)} className="px-3 py-1.5 text-sm border border-gray-700 rounded-lg disabled:opacity-40 hover:border-gray-500 transition-colors">→</button>
+                <button disabled={page === 1} onClick={() => setPage(p => p - 1)} className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg disabled:opacity-40 hover:border-gray-400 transition-colors">←</button>
+                <span className="text-sm text-gray-500">{page} / {pages}</span>
+                <button disabled={page === pages} onClick={() => setPage(p => p + 1)} className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg disabled:opacity-40 hover:border-gray-400 transition-colors">→</button>
               </div>
             )}
           </div>
         ) : (
-          <div className="flex-1 flex items-center justify-center text-gray-500 text-sm">
+          <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">
             Выберите анкету слева
           </div>
         )}

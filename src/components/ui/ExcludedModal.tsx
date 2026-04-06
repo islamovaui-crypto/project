@@ -36,17 +36,17 @@ export default function ExcludedModal({ onClose }: { onClose: () => void }) {
     await load()
   }
 
-  const inputClass = 'bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500 w-full'
+  const inputClass = 'bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-blue-500 w-full'
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-      <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 w-full max-w-xl max-h-[80vh] flex flex-col">
+      <div className="bg-white border border-gray-300 rounded-xl p-6 w-full max-w-xl max-h-[80vh] flex flex-col shadow-lg">
         <div className="flex items-center justify-between mb-5">
           <div>
-            <h2 className="text-base font-semibold text-white">Исключённые аккаунты</h2>
-            <p className="text-xs text-gray-500 mt-0.5">Не учитываются в статистике</p>
+            <h2 className="text-base font-semibold text-gray-900">Исключённые аккаунты</h2>
+            <p className="text-xs text-gray-400 mt-0.5">Не учитываются в статистике</p>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-white text-xl">×</button>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-900 text-xl">×</button>
         </div>
 
         {/* Add form */}
@@ -59,24 +59,24 @@ export default function ExcludedModal({ onClose }: { onClose: () => void }) {
           <button
             onClick={add}
             disabled={loading || (!form.userId && !form.email && !form.tag && !form.groupId)}
-            className="col-span-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white py-2 rounded-lg text-sm font-medium transition-colors"
+            className="col-span-2 bg-blue-500 hover:bg-blue-600 disabled:opacity-40 text-white py-2 rounded-lg text-sm font-medium transition-colors"
           >Добавить исключение</button>
         </div>
 
         {/* List */}
         <div className="flex-1 overflow-y-auto space-y-2">
           {list.length === 0 ? (
-            <p className="text-sm text-gray-500 text-center py-6">Нет исключений</p>
+            <p className="text-sm text-gray-400 text-center py-6">Нет исключений</p>
           ) : list.map((e) => (
-            <div key={e.id} className="flex items-center justify-between bg-gray-800 rounded-lg px-3 py-2.5">
+            <div key={e.id} className="flex items-center justify-between bg-gray-100 rounded-lg px-3 py-2.5">
               <div className="text-sm">
-                {e.userId && <span className="text-gray-300">ID: {e.userId}</span>}
-                {e.email && <span className="text-gray-300">Email: {e.email}</span>}
-                {e.tag && <span className="text-gray-300">Тег: {e.tag}</span>}
-                {e.groupId && <span className="text-gray-300">Группа: {e.groupId}</span>}
-                {e.reason && <span className="text-gray-500 ml-2 text-xs">— {e.reason}</span>}
+                {e.userId && <span className="text-gray-600">ID: {e.userId}</span>}
+                {e.email && <span className="text-gray-600">Email: {e.email}</span>}
+                {e.tag && <span className="text-gray-600">Тег: {e.tag}</span>}
+                {e.groupId && <span className="text-gray-600">Группа: {e.groupId}</span>}
+                {e.reason && <span className="text-gray-400 ml-2 text-xs">— {e.reason}</span>}
               </div>
-              <button onClick={() => remove(e.id)} className="text-gray-500 hover:text-red-400 transition-colors ml-3 text-lg leading-none">×</button>
+              <button onClick={() => remove(e.id)} className="text-gray-400 hover:text-red-400 transition-colors ml-3 text-lg leading-none">×</button>
             </div>
           ))}
         </div>

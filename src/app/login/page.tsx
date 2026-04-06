@@ -26,24 +26,24 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 flex items-center justify-center">
-      <div className="bg-gray-900 border border-gray-800 rounded-xl p-8 w-full max-w-sm">
-        <h1 className="text-xl font-semibold text-white mb-1">GetCourse Dashboard</h1>
-        <p className="text-gray-400 text-sm mb-6">Введите пароль для доступа</p>
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="bg-white border border-gray-200 rounded-xl p-8 w-full max-w-sm shadow-lg">
+        <h1 className="text-xl font-semibold text-gray-900 mb-1">GetCourse Dashboard</h1>
+        <p className="text-gray-500 text-sm mb-6">Введите пароль для доступа</p>
         <form onSubmit={handleSubmit} className="space-y-4">
           <input
             type="password"
             placeholder="Пароль"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+            className="w-full bg-white border border-gray-300 rounded-lg px-4 py-2.5 text-gray-900 placeholder-gray-400 focus:outline-none focus:border-blue-500"
             autoFocus
           />
           {error && <p className="text-red-400 text-sm">{error}</p>}
           <button
             type="submit"
             disabled={loading || !password}
-            className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-lg py-2.5 font-medium transition-colors"
+            className="w-full bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white rounded-lg py-2.5 font-medium transition-colors"
           >
             {loading ? 'Вход...' : 'Войти'}
           </button>

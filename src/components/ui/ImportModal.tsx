@@ -29,10 +29,10 @@ export default function ImportModal({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-      <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 w-full max-w-lg">
+      <div className="bg-white border border-gray-300 rounded-xl p-6 w-full max-w-lg shadow-lg">
         <div className="flex items-center justify-between mb-5">
-          <h2 className="text-base font-semibold text-white">Импорт CSV</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-white text-xl leading-none">×</button>
+          <h2 className="text-base font-semibold text-gray-900">Импорт CSV</h2>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-900 text-xl leading-none">×</button>
         </div>
 
         <div className="space-y-4">
@@ -42,15 +42,15 @@ export default function ImportModal({ onClose }: { onClose: () => void }) {
               <button
                 key={t}
                 onClick={() => setType(t)}
-                className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${type === t ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}
+                className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${type === t ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-500 hover:text-gray-900'}`}
               >{label}</button>
             ))}
           </div>
 
           {/* Example */}
-          <div className="bg-gray-800 rounded-lg p-3">
-            <p className="text-xs text-gray-400 mb-1.5">Формат CSV:</p>
-            <pre className="text-xs text-gray-300 overflow-x-auto">{type === 'users' ? usersExample : type === 'lesson' ? lessonExample : surveyExample}</pre>
+          <div className="bg-gray-100 rounded-lg p-3">
+            <p className="text-xs text-gray-500 mb-1.5">Формат CSV:</p>
+            <pre className="text-xs text-gray-600 overflow-x-auto">{type === 'users' ? usersExample : type === 'lesson' ? lessonExample : surveyExample}</pre>
           </div>
 
           {type === 'survey' && (
@@ -59,25 +59,25 @@ export default function ImportModal({ onClose }: { onClose: () => void }) {
               placeholder="Название анкеты (например: НейроАгент - Онбординг)"
               value={surveyName}
               onChange={(e) => setSurveyName(e.target.value)}
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500"
+              className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-blue-500"
             />
           )}
 
           {/* File input */}
           <div
             onClick={() => inputRef.current?.click()}
-            className="border-2 border-dashed border-gray-700 hover:border-gray-500 rounded-lg p-6 text-center cursor-pointer transition-colors"
+            className="border-2 border-dashed border-gray-300 hover:border-gray-400 rounded-lg p-6 text-center cursor-pointer transition-colors"
           >
             <input ref={inputRef} type="file" accept=".csv" className="hidden" onChange={(e) => setFile(e.target.files?.[0] || null)} />
             {file ? (
-              <p className="text-sm text-blue-400">{file.name} ({(file.size / 1024).toFixed(1)} KB)</p>
+              <p className="text-sm text-blue-600">{file.name} ({(file.size / 1024).toFixed(1)} KB)</p>
             ) : (
-              <p className="text-sm text-gray-500">Нажмите, чтобы выбрать CSV файл</p>
+              <p className="text-sm text-gray-400">Нажмите, чтобы выбрать CSV файл</p>
             )}
           </div>
 
           {result && (
-            <div className={`rounded-lg px-4 py-3 text-sm space-y-1 ${result.errors > 0 ? 'bg-yellow-900/30 text-yellow-300' : 'bg-green-900/30 text-green-300'}`}>
+            <div className={`rounded-lg px-4 py-3 text-sm space-y-1 ${result.errors > 0 ? 'bg-yellow-50 text-yellow-700' : 'bg-green-50 text-green-700'}`}>
               <p>Импортировано: {result.imported} строк{result.errors > 0 ? `, не найдено: ${result.errors}` : ''}</p>
               {result.detectedColumns && (
                 <p className="text-xs opacity-70">Колонки: Email={result.detectedColumns.emailCol || '?'}, Telegram={result.detectedColumns.tgCol || '?'}</p>
@@ -89,11 +89,11 @@ export default function ImportModal({ onClose }: { onClose: () => void }) {
           )}
 
           <div className="flex gap-3 pt-1">
-            <button onClick={onClose} className="flex-1 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-sm transition-colors">Закрыть</button>
+            <button onClick={onClose} className="flex-1 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg text-sm transition-colors">Закрыть</button>
             <button
               onClick={handleImport}
               disabled={!file || loading}
-              className="flex-1 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white rounded-lg text-sm font-medium transition-colors"
+              className="flex-1 py-2 bg-blue-500 hover:bg-blue-600 disabled:opacity-40 text-white rounded-lg text-sm font-medium transition-colors"
             >{loading ? 'Загружаю...' : 'Импортировать'}</button>
           </div>
         </div>

@@ -69,9 +69,9 @@ export default function OrdersTab({ productIds }: { productIds: string[] }) {
           { label: 'Оплачено', value: stats.paid },
           { label: 'Выручка', value: stats.totalAmount.toLocaleString('ru-RU') + ' ₽' },
         ].map((s) => (
-          <div key={s.label} className="bg-gray-900 border border-gray-800 rounded-xl p-4">
-            <p className="text-xs text-gray-500 uppercase tracking-wide">{s.label}</p>
-            <p className="text-2xl font-semibold text-white mt-1">{s.value}</p>
+          <div key={s.label} className="bg-gray-50 border border-gray-200 rounded-xl p-4">
+            <p className="text-xs text-gray-400 uppercase tracking-wide">{s.label}</p>
+            <p className="text-2xl font-semibold text-gray-900 mt-1">{s.value}</p>
           </div>
         ))}
       </div>
@@ -81,7 +81,7 @@ export default function OrdersTab({ productIds }: { productIds: string[] }) {
         <select
           value={isPaid}
           onChange={(e) => setIsPaid(e.target.value)}
-          className="bg-gray-800 border border-gray-700 text-sm rounded-lg px-3 py-2 text-gray-200 focus:outline-none focus:border-blue-500"
+          className="bg-white border border-gray-300 text-sm rounded-lg px-3 py-2 text-gray-800 focus:outline-none focus:border-blue-500"
         >
           <option value="">Все статусы</option>
           <option value="true">Оплачено</option>
@@ -89,15 +89,15 @@ export default function OrdersTab({ productIds }: { productIds: string[] }) {
         </select>
         <button
           onClick={() => downloadCSV(orders)}
-          className="text-sm text-gray-400 hover:text-white border border-gray-700 hover:border-gray-500 px-3 py-2 rounded-lg transition-colors"
+          className="text-sm text-gray-500 hover:text-gray-900 border border-gray-300 hover:border-gray-400 px-3 py-2 rounded-lg transition-colors"
         >↓ CSV</button>
       </div>
 
       {/* Table */}
-      <div className="overflow-x-auto rounded-xl border border-gray-800">
+      <div className="overflow-x-auto rounded-xl border border-gray-200">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-gray-800 text-gray-400 text-xs uppercase tracking-wide">
+            <tr className="border-b border-gray-200 text-gray-500 text-xs uppercase tracking-wide">
               <th className="text-left px-4 py-3">ID заказа</th>
               <th className="text-left px-4 py-3">Участник</th>
               <th className="text-left px-4 py-3">Продукт</th>
@@ -108,21 +108,21 @@ export default function OrdersTab({ productIds }: { productIds: string[] }) {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={6} className="text-center py-12 text-gray-500">Загрузка...</td></tr>
+              <tr><td colSpan={6} className="text-center py-12 text-gray-400">Загрузка...</td></tr>
             ) : orders.length === 0 ? (
-              <tr><td colSpan={6} className="text-center py-12 text-gray-500">Нет данных</td></tr>
+              <tr><td colSpan={6} className="text-center py-12 text-gray-400">Нет данных</td></tr>
             ) : orders.map((o) => (
-              <tr key={o.id} className="border-b border-gray-800/50 hover:bg-gray-800/30 transition-colors">
-                <td className="px-4 py-3 font-mono text-xs text-gray-400">{o.dealNumber || o.id}</td>
-                <td className="px-4 py-3 text-gray-200">{o.user?.email || o.userId}</td>
-                <td className="px-4 py-3 text-gray-300">{o.productTitle || '—'}</td>
-                <td className="px-4 py-3 text-right text-gray-200">{o.amount != null ? o.amount.toLocaleString('ru-RU') + ' ₽' : '—'}</td>
+              <tr key={o.id} className="border-b border-gray-200 hover:bg-gray-100 transition-colors">
+                <td className="px-4 py-3 font-mono text-xs text-gray-500">{o.dealNumber || o.id}</td>
+                <td className="px-4 py-3 text-gray-800">{o.user?.email || o.userId}</td>
+                <td className="px-4 py-3 text-gray-600">{o.productTitle || '—'}</td>
+                <td className="px-4 py-3 text-right text-gray-800">{o.amount != null ? o.amount.toLocaleString('ru-RU') + ' ₽' : '—'}</td>
                 <td className="px-4 py-3">
-                  <span className={`text-xs px-2 py-0.5 rounded-full ${o.isPaid ? 'bg-green-900/40 text-green-400' : 'bg-gray-700 text-gray-400'}`}>
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${o.isPaid ? 'bg-green-100 text-green-600' : 'bg-gray-200 text-gray-500'}`}>
                     {STATUS_LABELS[o.status] || o.status}
                   </span>
                 </td>
-                <td className="px-4 py-3 text-gray-400 text-xs">{o.gcCreatedAt ? new Date(o.gcCreatedAt).toLocaleDateString('ru-RU') : '—'}</td>
+                <td className="px-4 py-3 text-gray-500 text-xs">{o.gcCreatedAt ? new Date(o.gcCreatedAt).toLocaleDateString('ru-RU') : '—'}</td>
               </tr>
             ))}
           </tbody>
@@ -131,9 +131,9 @@ export default function OrdersTab({ productIds }: { productIds: string[] }) {
 
       {pages > 1 && (
         <div className="flex items-center justify-center gap-2">
-          <button disabled={page === 1} onClick={() => setPage(p => p - 1)} className="px-3 py-1.5 text-sm border border-gray-700 rounded-lg disabled:opacity-40 hover:border-gray-500 transition-colors">←</button>
-          <span className="text-sm text-gray-400">{page} / {pages}</span>
-          <button disabled={page === pages} onClick={() => setPage(p => p + 1)} className="px-3 py-1.5 text-sm border border-gray-700 rounded-lg disabled:opacity-40 hover:border-gray-500 transition-colors">→</button>
+          <button disabled={page === 1} onClick={() => setPage(p => p - 1)} className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg disabled:opacity-40 hover:border-gray-400 transition-colors">←</button>
+          <span className="text-sm text-gray-500">{page} / {pages}</span>
+          <button disabled={page === pages} onClick={() => setPage(p => p + 1)} className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg disabled:opacity-40 hover:border-gray-400 transition-colors">→</button>
         </div>
       )}
     </div>
