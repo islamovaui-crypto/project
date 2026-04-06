@@ -28,7 +28,7 @@ function downloadCSV(rows: Progress[]) {
   URL.revokeObjectURL(url)
 }
 
-export default function ProgressTab({ productId }: { productId: string }) {
+export default function ProgressTab({ productIds }: { productIds: string[] }) {
   const [rows, setRows] = useState<Progress[]>([])
   const [total, setTotal] = useState(0)
   const [notStarted, setNotStarted] = useState(0)
@@ -41,7 +41,7 @@ export default function ProgressTab({ productId }: { productId: string }) {
   const load = useCallback(async () => {
     setLoading(true)
     const params = new URLSearchParams({ page: String(page), search })
-    if (productId) params.set('productId', productId)
+    for (const pid of productIds) params.append('productId', pid)
     if (completed !== '') params.set('completed', completed)
     const res = await fetch('/api/progress?' + params)
     if (res.ok) {
@@ -52,10 +52,10 @@ export default function ProgressTab({ productId }: { productId: string }) {
       setNotStarted(data.stats?.notStarted ?? 0)
     }
     setLoading(false)
-  }, [page, productId, completed, search])
+  }, [page, productIds, completed, search])
 
   useEffect(() => { load() }, [load])
-  useEffect(() => { setPage(1) }, [productId, completed, search])
+  useEffect(() => { setPage(1) }, [productIds, completed, search])
 
   return (
     <div className="space-y-4">

@@ -25,7 +25,7 @@ function downloadCSV(answers: Answer[], surveyName: string) {
   URL.revokeObjectURL(url)
 }
 
-export default function SurveysTab({ productId }: { productId: string }) {
+export default function SurveysTab({ productIds }: { productIds: string[] }) {
   const [surveys, setSurveys] = useState<Survey[]>([])
   const [selectedSurvey, setSelectedSurvey] = useState<Survey | null>(null)
   const [answers, setAnswers] = useState<Answer[]>([])
@@ -37,11 +37,11 @@ export default function SurveysTab({ productId }: { productId: string }) {
 
   useEffect(() => {
     const params = new URLSearchParams()
-    if (productId) params.set('productId', productId)
+    for (const pid of productIds) params.append('productId', pid)
     fetch('/api/surveys?' + params).then(r => r.ok ? r.json() : null).then(d => {
       if (d) setSurveys(d.surveys)
     })
-  }, [productId])
+  }, [productIds])
 
   const loadAnswers = useCallback(async () => {
     if (!selectedSurvey) return

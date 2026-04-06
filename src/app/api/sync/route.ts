@@ -47,6 +47,10 @@ async function runSync(logId: string) {
     // ── Users ──────────────────────────────────────────────────────
     // GetCourse fields: id, Email, Имя, Фамилия, Телефон, Страна, Город, Создан
     const users = await fetchUsers(fromDate)
+    if (users.length > 0) {
+      console.log('📋 USER FIELDS:', Object.keys(users[0]))
+      console.log('📋 FIRST USER:', JSON.stringify(users[0]))
+    }
     for (const u of users) {
       const id = str(u['id'])
       if (!id) continue
@@ -57,8 +61,11 @@ async function runSync(logId: string) {
           id,
           email: str(u['Email']),
           phone: str(u['Телефон']),
+          telegram: str(u['Username_Telegram']) || str(u['UserID_Telegram']),
           firstName: str(u['Имя']),
           lastName: str(u['Фамилия']),
+          birthDate: str(u['Дата рождения']),
+          age: str(u['Возраст']),
           city: str(u['Город']),
           country: str(u['Страна']),
           groups: [],
@@ -68,8 +75,11 @@ async function runSync(logId: string) {
         update: {
           email: str(u['Email']),
           phone: str(u['Телефон']),
+          telegram: str(u['Username_Telegram']) || str(u['UserID_Telegram']),
           firstName: str(u['Имя']),
           lastName: str(u['Фамилия']),
+          birthDate: str(u['Дата рождения']),
+          age: str(u['Возраст']),
           city: str(u['Город']),
           country: str(u['Страна']),
           syncedAt: new Date(),
@@ -120,7 +130,8 @@ async function runSync(logId: string) {
         })
       }
 
-      const isPaid = d['Оплачен'] === 'Да' || d['Оплачен'] === true
+      const paidVal = d['Оплачен']
+      const isPaid = paidVal === 'Да' || paidVal === true || paidVal === 'Частично' || str(d['Статус']) === 'Частично оплачен' || str(d['Статус']) === 'part_payed'
       const amountRaw = str(d['Стоимость, RUB']).replace(',', '.')
       const amount = amountRaw ? parseFloat(amountRaw) : null
 

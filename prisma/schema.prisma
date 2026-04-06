@@ -11,8 +11,11 @@ model GcUser {
   id        String   @id // GetCourse user ID
   email     String?
   phone     String?
+  telegram  String?
   firstName String?
   lastName  String?
+  birthDate String?
+  age       String?
   city      String?
   country   String?
   groups    String[] // GetCourse group IDs

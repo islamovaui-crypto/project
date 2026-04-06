@@ -8,7 +8,7 @@ interface InsightData {
 
 interface SyncLog { status: string; finishedAt: string | null }
 
-export default function InsightsBar({ productId, syncStatus }: { productId: string; syncStatus: SyncLog | null }) {
+export default function InsightsBar({ productIds, syncStatus }: { productIds: string[]; syncStatus: SyncLog | null }) {
   const [data, setData] = useState<InsightData | null>(null)
   const [loading, setLoading] = useState(false)
 

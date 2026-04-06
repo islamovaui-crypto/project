@@ -34,7 +34,7 @@ function downloadCSV(orders: Order[]) {
   URL.revokeObjectURL(url)
 }
 
-export default function OrdersTab({ productId }: { productId: string }) {
+export default function OrdersTab({ productIds }: { productIds: string[] }) {
   const [orders, setOrders] = useState<Order[]>([])
   const [stats, setStats] = useState<Stats>({ total: 0, paid: 0, totalAmount: 0 })
   const [page, setPage] = useState(1)
@@ -45,7 +45,7 @@ export default function OrdersTab({ productId }: { productId: string }) {
   const load = useCallback(async () => {
     setLoading(true)
     const params = new URLSearchParams({ page: String(page) })
-    if (productId) params.set('productId', productId)
+    for (const pid of productIds) params.append('productId', pid)
     if (isPaid !== '') params.set('isPaid', isPaid)
     const res = await fetch('/api/orders?' + params)
     if (res.ok) {
@@ -55,7 +55,7 @@ export default function OrdersTab({ productId }: { productId: string }) {
       setPages(data.pages)
     }
     setLoading(false)
-  }, [page, productId, isPaid])
+  }, [page, productIds, isPaid])
 
   useEffect(() => { load() }, [load])
   useEffect(() => { setPage(1) }, [productId, isPaid])

@@ -1,5 +1,5 @@
 export const dynamic = 'force-dynamic'
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/middleware'
 
 const gcDomain = (process.env.GC_ACCOUNT || '').includes('.')
@@ -15,21 +15,35 @@ async function gcGet(path: string, params: Record<string, string> = {}) {
   return res.json()
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const authError = await requireAuth()
   if (authError) return authError
 
-  // Start a small deals export (last 7 days) to see field names
-  const from = new Date(Date.now() - 7 * 86400000)
+  const type = req.nextUrl.searchParams.get('type') || 'users'
+
+  // Special: list available API endpoints
+  if (type === 'test_endpoints') {
+    const endpoints = ['users', 'deals', 'payments', 'groups', 'forms', 'surveys', 'lessons', 'trainings']
+    const results: Record<string, unknown> = {}
+    for (const ep of endpoints) {
+      try {
+        const r = await gcGet(ep, {})
+        results[ep] = { success: r.success, error_code: r.error_code, error_message: r.error_message }
+      } catch (e) {
+        results[ep] = { error: String(e) }
+      }
+    }
+    return NextResponse.json({ results })
+  }
+  const from = new Date(Date.now() - 3 * 86400000)
   const gcDate = `${String(from.getDate()).padStart(2,'0')}.${String(from.getMonth()+1).padStart(2,'0')}.${from.getFullYear()}`
 
   try {
-    const init = await gcGet('deals', { 'created_at[from]': gcDate })
+    const init = await gcGet(type, { 'created_at[from]': gcDate })
     if (!init.success || !init.info?.export_id) {
       return NextResponse.json({ error: 'Failed to start export', raw: init })
     }
 
-    // Poll up to 10 times
     let result: Record<string, unknown> | null = null
     for (let i = 0; i < 10; i++) {
       await new Promise(r => setTimeout(r, 8000))
@@ -48,6 +62,7 @@ export async function GET() {
     fields.forEach((f: string, i: number) => { sample[f] = firstRow[i] })
 
     return NextResponse.json({
+      type,
       fields,
       totalRows: items.length,
       firstRow: sample,

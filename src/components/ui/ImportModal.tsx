@@ -2,10 +2,11 @@
 import { useState, useRef } from 'react'
 
 export default function ImportModal({ onClose }: { onClose: () => void }) {
-  const [type, setType] = useState<'lesson' | 'survey'>('lesson')
+  const [type, setType] = useState<'lesson' | 'survey' | 'users'>('users')
   const [file, setFile] = useState<File | null>(null)
+  const [surveyName, setSurveyName] = useState('')
   const [loading, setLoading] = useState(false)
-  const [result, setResult] = useState<{ imported: number; errors: number } | null>(null)
+  const [result, setResult] = useState<{ imported: number; errors: number; detectedColumns?: Record<string, string>; notFoundSample?: string[] } | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   async function handleImport() {
@@ -15,14 +16,16 @@ export default function ImportModal({ onClose }: { onClose: () => void }) {
     const fd = new FormData()
     fd.append('file', file)
     fd.append('type', type)
+    if (type === 'survey' && surveyName) fd.append('surveyName', surveyName)
     const res = await fetch('/api/import', { method: 'POST', body: fd })
     const data = await res.json()
     setResult(data)
     setLoading(false)
   }
 
+  const usersExample = 'Email,Telegram\nuser@mail.ru,@username'
   const lessonExample = 'user_id,lesson_id,lesson_title,product_id,opened,completed,last_activity\n12345,lesson_1,Урок 1,course_1,1,0,2024-01-15'
-  const surveyExample = 'user_id,survey_id,survey_name,question_id,question,answer,answered_at,product_id\n12345,survey_1,Входная анкета,q1,Ваш опыт,Новичок,2024-01-10,course_1'
+  const surveyExample = 'Скачайте CSV из GetCourse → Анкеты → Ответы → Экспорт.\nФайл загрузится как есть, без переименования колонок.'
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
@@ -35,20 +38,30 @@ export default function ImportModal({ onClose }: { onClose: () => void }) {
         <div className="space-y-4">
           {/* Type selector */}
           <div className="flex gap-2">
-            {(['lesson', 'survey'] as const).map((t) => (
+            {([['users', 'Данные участников'], ['lesson', 'Прогресс по урокам'], ['survey', 'Ответы на анкеты']] as const).map(([t, label]) => (
               <button
                 key={t}
                 onClick={() => setType(t)}
                 className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${type === t ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}
-              >{t === 'lesson' ? 'Прогресс по урокам' : 'Ответы на анкеты'}</button>
+              >{label}</button>
             ))}
           </div>
 
           {/* Example */}
           <div className="bg-gray-800 rounded-lg p-3">
             <p className="text-xs text-gray-400 mb-1.5">Формат CSV:</p>
-            <pre className="text-xs text-gray-300 overflow-x-auto">{type === 'lesson' ? lessonExample : surveyExample}</pre>
+            <pre className="text-xs text-gray-300 overflow-x-auto">{type === 'users' ? usersExample : type === 'lesson' ? lessonExample : surveyExample}</pre>
           </div>
+
+          {type === 'survey' && (
+            <input
+              type="text"
+              placeholder="Название анкеты (например: НейроАгент - Онбординг)"
+              value={surveyName}
+              onChange={(e) => setSurveyName(e.target.value)}
+              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500"
+            />
+          )}
 
           {/* File input */}
           <div
@@ -64,8 +77,14 @@ export default function ImportModal({ onClose }: { onClose: () => void }) {
           </div>
 
           {result && (
-            <div className={`rounded-lg px-4 py-3 text-sm ${result.errors > 0 ? 'bg-yellow-900/30 text-yellow-300' : 'bg-green-900/30 text-green-300'}`}>
-              Импортировано: {result.imported} строк{result.errors > 0 ? `, ошибок: ${result.errors}` : ''}
+            <div className={`rounded-lg px-4 py-3 text-sm space-y-1 ${result.errors > 0 ? 'bg-yellow-900/30 text-yellow-300' : 'bg-green-900/30 text-green-300'}`}>
+              <p>Импортировано: {result.imported} строк{result.errors > 0 ? `, не найдено: ${result.errors}` : ''}</p>
+              {result.detectedColumns && (
+                <p className="text-xs opacity-70">Колонки: Email={result.detectedColumns.emailCol || '?'}, Telegram={result.detectedColumns.tgCol || '?'}</p>
+              )}
+              {result.notFoundSample && result.notFoundSample.length > 0 && (
+                <p className="text-xs opacity-70">Не найдены: {result.notFoundSample.join(', ')}</p>
+              )}
             </div>
           )}
 

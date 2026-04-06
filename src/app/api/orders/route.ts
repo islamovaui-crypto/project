@@ -9,7 +9,7 @@ export async function GET(req: NextRequest) {
   if (authError) return authError
 
   const { searchParams } = req.nextUrl
-  const productId = searchParams.get('productId') || undefined
+  const productIds = searchParams.getAll('productId')
   const status = searchParams.get('status') || undefined
   const isPaid = searchParams.get('isPaid')
   const page = parseInt(searchParams.get('page') || '1')
@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
 
   const where = {
     userId: { notIn: [...excludedIds] },
-    ...(productId ? { productId } : {}),
+    ...(productIds.length > 0 ? { productId: { in: productIds } } : {}),
     ...(status ? { status } : {}),
     ...(isPaid !== null && isPaid !== undefined ? { isPaid: isPaid === 'true' } : {}),
   }
