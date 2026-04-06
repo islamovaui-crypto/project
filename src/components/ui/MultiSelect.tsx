@@ -53,10 +53,10 @@ export default function MultiSelect({
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen(!open)}
-        className="bg-gray-800 border border-gray-700 text-sm rounded-lg px-3 py-1.5 text-gray-200 focus:outline-none focus:border-blue-500 flex items-center gap-2 min-w-[200px] max-w-[350px]"
+        className="bg-white border border-gray-300 text-sm rounded-lg px-3 py-1.5 text-gray-800 focus:outline-none focus:border-blue-500 flex items-center gap-2 min-w-[200px] max-w-[350px]"
       >
         <span className="truncate">{label}</span>
-        <span className="text-gray-500 ml-auto">{open ? '▲' : '▼'}</span>
+        <span className="text-gray-400 ml-auto">{open ? '▲' : '▼'}</span>
       </button>
 
       {open && (

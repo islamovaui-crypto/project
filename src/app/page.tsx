@@ -211,7 +211,7 @@ export default function Dashboard() {
         </main>
 
         {copilotOpen && (
-          <aside className="w-96 border-l border-gray-800 flex-shrink-0 overflow-hidden">
+          <aside className="w-96 border-l border-gray-200 flex-shrink-0 overflow-hidden">
             <CopilotPanel onClose={() => setCopilotOpen(false)} />
           </aside>
         )}

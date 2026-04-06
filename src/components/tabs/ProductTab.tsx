@@ -18,15 +18,15 @@ export default function ProductTab({ productIds, label }: { productIds: string[]
   return (
     <div className="space-y-4">
       {/* Section switcher */}
-      <div className="flex gap-1 bg-gray-900 rounded-lg p-1 w-fit">
+      <div className="flex gap-1 bg-gray-50 rounded-lg p-1 w-fit">
         {SECTIONS.map((s) => (
           <button
             key={s.id}
             onClick={() => setSection(s.id)}
             className={`px-4 py-1.5 text-sm rounded-md transition-colors ${
               section === s.id
-                ? 'bg-gray-700 text-white'
-                : 'text-gray-400 hover:text-gray-200'
+                ? 'bg-gray-200 text-gray-900'
+                : 'text-gray-500 hover:text-gray-700'
             }`}
           >
             {s.label}

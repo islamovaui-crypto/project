@@ -94,7 +94,7 @@ function EditableCell({ userId, field, value, onSave, link }: { userId: string; 
         onChange={(e) => setVal(e.target.value)}
         onBlur={save}
         onKeyDown={(e) => e.key === 'Enter' && save()}
-        className="bg-gray-800 border border-blue-500 rounded px-1.5 py-0.5 text-xs text-gray-200 w-28 focus:outline-none"
+        className="bg-white border border-blue-500 rounded px-1.5 py-0.5 text-xs text-gray-800 w-28 focus:outline-none"
       />
     )
   }
@@ -102,8 +102,8 @@ function EditableCell({ userId, field, value, onSave, link }: { userId: string; 
   if (value && link) {
     return (
       <span className="flex items-center gap-1">
-        <a href={link} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 hover:underline">{value}</a>
-        <button onClick={() => { setVal(value); setEditing(true) }} className="text-gray-600 hover:text-gray-400 text-[10px]" title="Редактировать">✎</button>
+        <a href={link} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-500 hover:underline">{value}</a>
+        <button onClick={() => { setVal(value); setEditing(true) }} className="text-gray-400 hover:text-gray-500 text-[10px]" title="Редактировать">✎</button>
       </span>
     )
   }
@@ -219,12 +219,12 @@ export default function UsersTab({ productIds, defaultPaidFilter }: { productIds
             placeholder="Поиск по ID, email, имени..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500 w-64"
+            className="bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-blue-500 w-64"
           />
           <select
             value={hasOrders}
             onChange={(e) => setHasOrders(e.target.value)}
-            className="bg-gray-800 border border-gray-700 text-sm rounded-lg px-3 py-2 text-gray-200 focus:outline-none focus:border-blue-500"
+            className="bg-white border border-gray-300 text-sm rounded-lg px-3 py-2 text-gray-800 focus:outline-none focus:border-blue-500"
           >
             <option value="">Все участники</option>
             <option value="true">Есть заказы</option>
@@ -233,33 +233,33 @@ export default function UsersTab({ productIds, defaultPaidFilter }: { productIds
           <select
             value={paidFilter}
             onChange={(e) => setPaidFilter(e.target.value)}
-            className="bg-gray-800 border border-gray-700 text-sm rounded-lg px-3 py-2 text-gray-200 focus:outline-none focus:border-blue-500"
+            className="bg-white border border-gray-300 text-sm rounded-lg px-3 py-2 text-gray-800 focus:outline-none focus:border-blue-500"
           >
             <option value="">Любая оплата</option>
             <option value="true">Оплачено</option>
             <option value="false">Не оплачено</option>
           </select>
-          <span className="text-sm text-gray-400">{total.toLocaleString('ru-RU')} участников</span>
+          <span className="text-sm text-gray-500">{total.toLocaleString('ru-RU')} участников</span>
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={() => setShowSurvey(!showSurvey)}
-            className={`text-sm px-3 py-2 rounded-lg border transition-colors ${showSurvey ? 'bg-purple-900/40 border-purple-700 text-purple-300' : 'border-gray-700 text-gray-400 hover:text-white hover:border-gray-500'}`}
+            className={`text-sm px-3 py-2 rounded-lg border transition-colors ${showSurvey ? 'bg-purple-100 border-purple-300 text-purple-600' : 'border-gray-300 text-gray-500 hover:text-gray-900 hover:border-gray-400'}`}
           >{showSurvey ? '▾ Анкеты' : '▸ Анкеты'}</button>
         <button
           onClick={() => downloadCSV(users)}
-          className="text-sm text-gray-400 hover:text-white border border-gray-700 hover:border-gray-500 px-3 py-2 rounded-lg transition-colors"
+          className="text-sm text-gray-500 hover:text-gray-900 border border-gray-300 hover:border-gray-400 px-3 py-2 rounded-lg transition-colors"
         >↓ CSV</button>
         </div>
       </div>
 
       {/* Table */}
-      <div className="overflow-auto rounded-xl border border-gray-800" style={{ maxHeight: 'calc(100vh - 260px)' }}>
+      <div className="overflow-auto rounded-xl border border-gray-200" style={{ maxHeight: 'calc(100vh - 260px)' }}>
         <table className="w-full text-sm">
           <thead className="sticky top-0 z-10">
-            <tr className="border-b border-gray-800 bg-gray-900 text-gray-400 text-xs uppercase tracking-wide">
-              <th className="text-left px-4 py-3 cursor-pointer hover:text-gray-200 select-none" onClick={() => handleSort('email')}>Email{sortIcon('email')}</th>
-              <th className="text-left px-4 py-3 cursor-pointer hover:text-gray-200 select-none" onClick={() => handleSort('name')}>Имя{sortIcon('name')}</th>
+            <tr className="border-b border-gray-200 bg-gray-50 text-gray-500 text-xs uppercase tracking-wide">
+              <th className="text-left px-4 py-3 cursor-pointer hover:text-gray-700 select-none" onClick={() => handleSort('email')}>Email{sortIcon('email')}</th>
+              <th className="text-left px-4 py-3 cursor-pointer hover:text-gray-700 select-none" onClick={() => handleSort('name')}>Имя{sortIcon('name')}</th>
               <th className="text-left px-4 py-3">Телефон</th>
               <th className="text-left px-4 py-3">Telegram</th>
               <th className="text-left px-4 py-3">Дата рожд.</th>
@@ -267,13 +267,13 @@ export default function UsersTab({ productIds, defaultPaidFilter }: { productIds
               <th className="text-left px-4 py-3">Страна</th>
               <th className="text-left px-4 py-3">Город</th>
               <th className="text-left px-4 py-3">Продукт(ы)</th>
-              <th className="text-center px-4 py-3 cursor-pointer hover:text-gray-200 select-none" onClick={() => handleSort('paid')}>Оплачено{sortIcon('paid')}</th>
-              <th className="text-left px-4 py-3 cursor-pointer hover:text-gray-200 select-none" onClick={() => handleSort('paidAt')}>Дата покупки{sortIcon('paidAt')}</th>
-              <th className="text-right px-4 py-3 cursor-pointer hover:text-gray-200 select-none" onClick={() => handleSort('lessons')}>Уроки{sortIcon('lessons')}</th>
-              <th className="text-right px-4 py-3 cursor-pointer hover:text-gray-200 select-none" onClick={() => handleSort('surveys')}>Анкеты{sortIcon('surveys')}</th>
-              <th className="text-left px-4 py-3 cursor-pointer hover:text-gray-200 select-none" onClick={() => handleSort('id')}>ID{sortIcon('id')}</th>
+              <th className="text-center px-4 py-3 cursor-pointer hover:text-gray-700 select-none" onClick={() => handleSort('paid')}>Оплачено{sortIcon('paid')}</th>
+              <th className="text-left px-4 py-3 cursor-pointer hover:text-gray-700 select-none" onClick={() => handleSort('paidAt')}>Дата покупки{sortIcon('paidAt')}</th>
+              <th className="text-right px-4 py-3 cursor-pointer hover:text-gray-700 select-none" onClick={() => handleSort('lessons')}>Уроки{sortIcon('lessons')}</th>
+              <th className="text-right px-4 py-3 cursor-pointer hover:text-gray-700 select-none" onClick={() => handleSort('surveys')}>Анкеты{sortIcon('surveys')}</th>
+              <th className="text-left px-4 py-3 cursor-pointer hover:text-gray-700 select-none" onClick={() => handleSort('id')}>ID{sortIcon('id')}</th>
               {showSurvey && surveyQuestions.map((q) => (
-                <th key={q} className="text-left px-4 py-3 text-purple-400 max-w-[200px]" title={q}>
+                <th key={q} className="text-left px-4 py-3 text-purple-600 max-w-[200px]" title={q}>
                   <span className="line-clamp-2">{q.length > 30 ? q.slice(0, 30) + '...' : q}</span>
                 </th>
               ))}
@@ -281,61 +281,61 @@ export default function UsersTab({ productIds, defaultPaidFilter }: { productIds
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={14} className="text-center py-12 text-gray-500">Загрузка...</td></tr>
+              <tr><td colSpan={14} className="text-center py-12 text-gray-400">Загрузка...</td></tr>
             ) : users.length === 0 ? (
-              <tr><td colSpan={14} className="text-center py-12 text-gray-500">Нет данных. Нажмите «Синхронизировать».</td></tr>
+              <tr><td colSpan={14} className="text-center py-12 text-gray-400">Нет данных. Нажмите «Синхронизировать».</td></tr>
             ) : (
               sortedUsers.map((u) => {
                 const paidOrders = u.orders.filter((o) => o.isPaid)
                 return (
-                  <tr key={u.id} className="border-b border-gray-800/50 hover:bg-gray-800/30 transition-colors">
-                    <td className="px-4 py-3 text-gray-200">{u.email || <span className="text-gray-600 italic">нет email</span>}</td>
-                    <td className="px-4 py-3 text-gray-300">{[u.firstName, u.lastName].filter(Boolean).join(' ') || '—'}</td>
-                    <td className="px-4 py-3 text-gray-400 text-xs">{u.phone || '—'}</td>
-                    <td className="px-4 py-3 text-gray-400 text-xs">
+                  <tr key={u.id} className="border-b border-gray-200 hover:bg-gray-100 transition-colors">
+                    <td className="px-4 py-3 text-gray-800">{u.email || <span className="text-gray-400 italic">нет email</span>}</td>
+                    <td className="px-4 py-3 text-gray-600">{[u.firstName, u.lastName].filter(Boolean).join(' ') || '—'}</td>
+                    <td className="px-4 py-3 text-gray-500 text-xs">{u.phone || '—'}</td>
+                    <td className="px-4 py-3 text-gray-500 text-xs">
                       <EditableCell userId={u.id} field="telegram" value={u.telegram || ''} onSave={(v) => { u.telegram = v; setUsers([...users]) }} link={u.telegram ? `https://t.me/${u.telegram.replace(/^@/, '')}` : undefined} />
                     </td>
-                    <td className="px-4 py-3 text-gray-400 text-xs">
+                    <td className="px-4 py-3 text-gray-500 text-xs">
                       <EditableCell userId={u.id} field="birthDate" value={u.birthDate || ''} onSave={(v) => { u.birthDate = v; setUsers([...users]) }} />
                     </td>
-                    <td className="px-4 py-3 text-gray-400 text-xs">
+                    <td className="px-4 py-3 text-gray-500 text-xs">
                       <EditableCell userId={u.id} field="age" value={u.age || ''} onSave={(v) => { u.age = v; setUsers([...users]) }} />
                     </td>
-                    <td className="px-4 py-3 text-gray-400 text-xs">
+                    <td className="px-4 py-3 text-gray-500 text-xs">
                       <EditableCell userId={u.id} field="country" value={u.country || ''} onSave={(v) => { u.country = v; setUsers([...users]) }} />
                     </td>
-                    <td className="px-4 py-3 text-gray-400 text-xs">
+                    <td className="px-4 py-3 text-gray-500 text-xs">
                       <EditableCell userId={u.id} field="city" value={u.city || ''} onSave={(v) => { u.city = v; setUsers([...users]) }} />
                     </td>
                     <td className="px-4 py-3">
                       {u.orders.length === 0 ? (
-                        <span className="text-gray-600 text-xs">нет заказов</span>
+                        <span className="text-gray-400 text-xs">нет заказов</span>
                       ) : (
                         <div className="flex flex-col gap-0.5">
                           {u.orders.slice(0, 2).map((o) => (
-                            <span key={o.id} className={`text-xs px-2 py-0.5 rounded-full w-fit ${o.isPaid ? 'bg-green-900/40 text-green-400' : 'bg-gray-700 text-gray-400'}`}>
+                            <span key={o.id} className={`text-xs px-2 py-0.5 rounded-full w-fit ${o.isPaid ? 'bg-green-100 text-green-600' : 'bg-gray-200 text-gray-500'}`}>
                               {o.productTitle || '—'}
                             </span>
                           ))}
-                          {u.orders.length > 2 && <span className="text-xs text-gray-500">+{u.orders.length - 2}</span>}
+                          {u.orders.length > 2 && <span className="text-xs text-gray-400">+{u.orders.length - 2}</span>}
                         </div>
                       )}
                     </td>
                     <td className="px-4 py-3 text-center">
                       {paidOrders.length > 0
-                        ? <span className="text-green-400 font-medium">{paidOrders.length}</span>
-                        : <span className="text-gray-600">0</span>}
+                        ? <span className="text-green-600 font-medium">{paidOrders.length}</span>
+                        : <span className="text-gray-400">0</span>}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-400">
+                    <td className="px-4 py-3 text-sm text-gray-500">
                       {paidOrders.length > 0
                         ? paidOrders.map((o) => o.paidAt ? new Date(o.paidAt).toLocaleDateString('ru-RU') : o.gcCreatedAt ? new Date(o.gcCreatedAt).toLocaleDateString('ru-RU') : '—').join(', ')
                         : '—'}
                     </td>
-                    <td className="px-4 py-3 text-right text-gray-300">{u._count.lessonProgress || 0}</td>
-                    <td className="px-4 py-3 text-right text-gray-300">{u._count.surveyAnswers || 0}</td>
-                    <td className="px-4 py-3 font-mono text-xs text-gray-600">{u.id}</td>
+                    <td className="px-4 py-3 text-right text-gray-600">{u._count.lessonProgress || 0}</td>
+                    <td className="px-4 py-3 text-right text-gray-600">{u._count.surveyAnswers || 0}</td>
+                    <td className="px-4 py-3 font-mono text-xs text-gray-400">{u.id}</td>
                     {showSurvey && surveyQuestions.map((q) => (
-                      <td key={q} className="px-4 py-3 text-xs text-gray-400 max-w-[200px]">
+                      <td key={q} className="px-4 py-3 text-xs text-gray-500 max-w-[200px]">
                         <span className="line-clamp-3" title={surveyAnswers[u.id]?.[q] || ''}>
                           {surveyAnswers[u.id]?.[q] || '—'}
                         </span>
@@ -352,9 +352,9 @@ export default function UsersTab({ productIds, defaultPaidFilter }: { productIds
       {/* Pagination */}
       {pages > 1 && (
         <div className="flex items-center justify-center gap-2">
-          <button disabled={page === 1} onClick={() => setPage(p => p - 1)} className="px-3 py-1.5 text-sm border border-gray-700 rounded-lg disabled:opacity-40 hover:border-gray-500 transition-colors">←</button>
-          <span className="text-sm text-gray-400">{page} / {pages}</span>
-          <button disabled={page === pages} onClick={() => setPage(p => p + 1)} className="px-3 py-1.5 text-sm border border-gray-700 rounded-lg disabled:opacity-40 hover:border-gray-500 transition-colors">→</button>
+          <button disabled={page === 1} onClick={() => setPage(p => p - 1)} className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg disabled:opacity-40 hover:border-gray-400 transition-colors">←</button>
+          <span className="text-sm text-gray-500">{page} / {pages}</span>
+          <button disabled={page === pages} onClick={() => setPage(p => p + 1)} className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg disabled:opacity-40 hover:border-gray-400 transition-colors">→</button>
         </div>
       )}
     </div>
