@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'userId and field required' }, { status: 400 })
   }
 
-  const allowedFields = ['telegram', 'phone', 'city', 'country', 'birthDate', 'age']
+  const allowedFields = ['telegram', 'phone', 'city', 'country', 'birthDate', 'age', 'niche']
   if (!allowedFields.includes(field)) {
     return NextResponse.json({ error: 'Field not allowed' }, { status: 400 })
   }

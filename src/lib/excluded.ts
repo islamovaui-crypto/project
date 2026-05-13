@@ -15,6 +15,8 @@ export async function getExcludedUserIds(): Promise<Set<string>> {
   // Direct userId exclusions
   for (const ex of excluded) {
     if (ex.userId) excludedIds.add(ex.userId)
+    // ex.id is the GcUser.id when added via "Excluded" UI
+    if (ex.id) excludedIds.add(ex.id)
   }
 
   // Email, tag, group exclusions — match against users

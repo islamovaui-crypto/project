@@ -12,7 +12,7 @@ const SECTIONS = [
 
 type Section = (typeof SECTIONS)[number]['id']
 
-export default function ProductTab({ productIds, label }: { productIds: string[]; label: string }) {
+export default function ProductTab({ productIds, niche, alsoNiche, label }: { productIds: string[]; niche?: string; alsoNiche?: string; label: string }) {
   const [section, setSection] = useState<Section>('users')
 
   return (
@@ -35,7 +35,7 @@ export default function ProductTab({ productIds, label }: { productIds: string[]
       </div>
 
       {/* Content */}
-      {section === 'users' && <UsersTab productIds={productIds} defaultPaidFilter="true" />}
+      {section === 'users' && <UsersTab productIds={productIds} niche={niche} alsoNiche={alsoNiche} defaultPaidFilter="true" course={label} />}
       {section === 'progress' && <ProgressTab productIds={productIds} />}
       {section === 'surveys' && <SurveysTab productIds={productIds} />}
     </div>

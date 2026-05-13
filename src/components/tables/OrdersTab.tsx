@@ -58,7 +58,7 @@ export default function OrdersTab({ productIds }: { productIds: string[] }) {
   }, [page, productIds, isPaid])
 
   useEffect(() => { load() }, [load])
-  useEffect(() => { setPage(1) }, [productId, isPaid])
+  useEffect(() => { setPage(1) }, [productIds, isPaid])
 
   return (
     <div className="space-y-4">

@@ -19,24 +19,31 @@ const PRODUCT_TABS = [
   {
     id: 'neuroagent3',
     label: 'НейроАгент 3.0',
-    match: (name: string) => /нейроагент\s*3/i.test(name),
+    match: (name: string) => /нейроагент\s*3/i.test(name) && !/куратор/i.test(name),
   },
   {
     id: 'vibecoding2',
     label: 'Вайбкодинг 2.0',
-    match: (name: string) => /вайбкодинг\s*2\.0/i.test(name) && !/бонус/i.test(name),
+    match: (name: string) => /вайбкодинг\s*2\.0/i.test(name) && !/бонус/i.test(name) && !/куратор/i.test(name),
+    alsoNiche: 'Вайбкодинг 2.0',
   },
   {
     id: 'vibecoding',
     label: 'Вайбкодинг',
-    match: (name: string) => (/^вайбкодинг/i.test(name) || /тариф.*вип|тариф.*делай/i.test(name)) && !/вайбкодинг\s*2/i.test(name) && !/бонус/i.test(name) && !/запис/i.test(name),
+    match: (name: string) => /вайбкодинг/i.test(name) && !/вайбкодинг\s*2/i.test(name) && !/бонус/i.test(name) && !/запис/i.test(name) && !/куратор/i.test(name) && !/1\s*рубл/i.test(name) && !/фокус[\s-]*группа/i.test(name),
   },
   {
     id: 'univer',
     label: 'УНИВЕР',
-    match: (name: string) => /универ/i.test(name),
+    match: (name: string) => /универ/i.test(name) && !/куратор/i.test(name),
   },
-] as const
+  {
+    id: 'neurocreator',
+    label: 'Нейрокреатор',
+    match: () => false, // special: filter by niche, not product
+    niche: 'Нейрокреатор',
+  },
+]
 
 type TabId = (typeof PRODUCT_TABS)[number]['id']
 
@@ -117,7 +124,18 @@ export default function Dashboard() {
     if (tabId === 'all') return selectedProducts
     const tab = PRODUCT_TABS.find(t => t.id === tabId)
     if (!tab || tab.id === 'all') return []
+    if ('niche' in tab) return [] // niche tabs don't filter by product
     return products.filter(p => tab.match(p.name)).map(p => p.id)
+  }
+
+  function getTabNiche(tabId: TabId): string | undefined {
+    const tab = PRODUCT_TABS.find(t => t.id === tabId)
+    return tab && 'niche' in tab ? (tab as { niche: string }).niche : undefined
+  }
+
+  function getTabAlsoNiche(tabId: TabId): string | undefined {
+    const tab = PRODUCT_TABS.find(t => t.id === tabId)
+    return tab && 'alsoNiche' in tab ? (tab as { alsoNiche: string }).alsoNiche : undefined
   }
 
   const isRunning = syncing || syncStatus?.status === 'running'
@@ -128,6 +146,8 @@ export default function Dashboard() {
     : 'Данные не загружены'
 
   const activeProductIds = getTabProductIds(activeTab)
+  const activeNiche = getTabNiche(activeTab)
+  const activeAlsoNiche = getTabAlsoNiche(activeTab)
 
   return (
     <div className="min-h-screen bg-white text-gray-900 flex flex-col">
@@ -206,7 +226,7 @@ export default function Dashboard() {
           {activeTab === 'all' ? (
             <UsersTab productIds={selectedProducts} />
           ) : (
-            <ProductTab productIds={activeProductIds} label={PRODUCT_TABS.find(t => t.id === activeTab)?.label || ''} />
+            <ProductTab productIds={activeProductIds} niche={activeNiche} alsoNiche={activeAlsoNiche} label={PRODUCT_TABS.find(t => t.id === activeTab)?.label || ''} />
           )}
         </main>
 

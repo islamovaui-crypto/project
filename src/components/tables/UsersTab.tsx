@@ -37,6 +37,8 @@ interface GcUser {
   age: string | null
   city: string | null
   country: string | null
+  refunded?: boolean
+  lost?: boolean
   tags: string[]
   gcCreatedAt: string | null
   orders: Order[]
@@ -119,6 +121,39 @@ function EditableCell({ userId, field, value, onSave, link }: { userId: string; 
   )
 }
 
+function ResizableTh({ width, onResize, children, className, sticky, left, onClick }: { width?: number; onResize?: (w: number) => void; children: React.ReactNode; className?: string; sticky?: boolean; left?: number; onClick?: () => void }) {
+  const startResize = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    e.preventDefault()
+    const startX = e.clientX
+    const startW = width || 150
+    const onMove = (ev: MouseEvent) => onResize?.(Math.max(80, startW + ev.clientX - startX))
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+    }
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }
+  const style: React.CSSProperties = {
+    width: width ? `${width}px` : undefined,
+    minWidth: width ? `${width}px` : undefined,
+    maxWidth: width ? `${width}px` : undefined,
+    ...(sticky ? { position: 'sticky', left: `${left || 0}px`, top: 0, zIndex: 50, background: '#f9fafb' } : { position: 'sticky', top: 0, zIndex: 10, background: '#f9fafb' }),
+  }
+  return (
+    <th style={style} className={`relative ${className || ''}`} onClick={onClick}>
+      {children}
+      {onResize && (
+        <span
+          onMouseDown={startResize}
+          className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-400 select-none"
+        />
+      )}
+    </th>
+  )
+}
+
 function downloadCSV(users: GcUser[]) {
   const headers = ['ID', 'Email', 'Имя', 'Фамилия', 'Телефон', 'Telegram', 'Дата рождения', 'Возраст', 'Страна', 'Город', 'Продукты', 'Оплачено', 'Дата покупки', 'Заказы', 'Уроки']
   const rows = users.map((u) => {
@@ -150,7 +185,7 @@ function downloadCSV(users: GcUser[]) {
   URL.revokeObjectURL(url)
 }
 
-export default function UsersTab({ productIds, defaultPaidFilter }: { productIds: string[]; defaultPaidFilter?: string }) {
+export default function UsersTab({ productIds, niche, alsoNiche, defaultPaidFilter, course }: { productIds: string[]; niche?: string; alsoNiche?: string; defaultPaidFilter?: string; course?: string }) {
   const [users, setUsers] = useState<GcUser[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
@@ -164,6 +199,11 @@ export default function UsersTab({ productIds, defaultPaidFilter }: { productIds
   const [showSurvey, setShowSurvey] = usePersistedState('users_showSurvey', false)
   const [surveyQuestions, setSurveyQuestions] = useState<string[]>([])
   const [surveyAnswers, setSurveyAnswers] = useState<Record<string, Record<string, string>>>({})
+  const [showLessons, setShowLessons] = usePersistedState('users_showLessons', false)
+  const [colWidths, setColWidths] = usePersistedState<Record<string, number>>('users_colWidths', { email: 220, name: 180 })
+  const [lessons, setLessons] = useState<{ id: string; title: string; moduleTitle: string; entered: number; openDate?: string | null }[]>([])
+  const [visits, setVisits] = useState<Record<string, Record<string, boolean>>>({})
+  const [scrapingProgress, setScrapingProgress] = useState(false)
 
   function handleSort(key: SortKey) {
     if (sortKey === key) {
@@ -174,7 +214,12 @@ export default function UsersTab({ productIds, defaultPaidFilter }: { productIds
     }
   }
 
-  const sortedUsers = sortUsers(users, sortKey, sortDir)
+  const sortedUsersRaw = sortUsers(users, sortKey, sortDir)
+  // Pin refunded/lost to the bottom
+  const sortedUsers = [
+    ...sortedUsersRaw.filter(u => !u.refunded && !u.lost),
+    ...sortedUsersRaw.filter(u => u.refunded || u.lost),
+  ]
   const sortIcon = (key: SortKey) => sortKey === key ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ''
 
   const load = useCallback(async () => {
@@ -183,6 +228,8 @@ export default function UsersTab({ productIds, defaultPaidFilter }: { productIds
     for (const pid of productIds) params.append('productId', pid)
     if (hasOrders !== '') params.set('hasOrders', hasOrders)
     if (paidFilter !== '') params.set('isPaid', paidFilter)
+    if (niche) params.set('niche', niche)
+    if (alsoNiche) params.set('alsoNiche', alsoNiche)
     const res = await fetch('/api/users?' + params)
     if (res.ok) {
       const data = await res.json()
@@ -191,7 +238,7 @@ export default function UsersTab({ productIds, defaultPaidFilter }: { productIds
       setPages(data.pages)
     }
     setLoading(false)
-  }, [page, search, productIds, hasOrders, paidFilter])
+  }, [page, search, productIds, hasOrders, paidFilter, niche, alsoNiche])
 
   // Load survey answers for displayed users
   useEffect(() => {
@@ -205,6 +252,42 @@ export default function UsersTab({ productIds, defaultPaidFilter }: { productIds
       }
     })
   }, [users, showSurvey])
+
+  // Load lesson visits for displayed users (POST to avoid URL length limit)
+  useEffect(() => {
+    if (users.length === 0 || !showLessons || !course) return
+    fetch('/api/lesson-visits', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ course, userIds: users.map(u => u.id) }),
+    }).then(r => r.ok ? r.json() : null).then(d => {
+      if (d) {
+        setLessons(d.lessons || [])
+        setVisits(d.visits || {})
+      }
+    })
+  }, [users, showLessons, course])
+
+  async function refreshLessonScraping() {
+    if (!course) return
+    setScrapingProgress(true)
+    try {
+      await fetch('/api/scrape-progress/refresh?course=' + encodeURIComponent(course), { method: 'POST' })
+      // Reload visits via POST
+      const res = await fetch('/api/lesson-visits', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ course, userIds: users.map(u => u.id) }),
+      })
+      if (res.ok) {
+        const d = await res.json()
+        setLessons(d.lessons || [])
+        setVisits(d.visits || {})
+      }
+    } finally {
+      setScrapingProgress(false)
+    }
+  }
 
   useEffect(() => { load() }, [load])
   useEffect(() => { setPage(1) }, [search, productIds, hasOrders, paidFilter])
@@ -230,15 +313,17 @@ export default function UsersTab({ productIds, defaultPaidFilter }: { productIds
             <option value="true">Есть заказы</option>
             <option value="false">Без заказов</option>
           </select>
-          <select
-            value={paidFilter}
-            onChange={(e) => setPaidFilter(e.target.value)}
-            className="bg-white border border-gray-300 text-sm rounded-lg px-3 py-2 text-gray-800 focus:outline-none focus:border-blue-500"
-          >
-            <option value="">Любая оплата</option>
-            <option value="true">Оплачено</option>
-            <option value="false">Не оплачено</option>
-          </select>
+          {!defaultPaidFilter && (
+            <select
+              value={paidFilter}
+              onChange={(e) => setPaidFilter(e.target.value)}
+              className="bg-white border border-gray-300 text-sm rounded-lg px-3 py-2 text-gray-800 focus:outline-none focus:border-blue-500"
+            >
+              <option value="">Любая оплата</option>
+              <option value="true">Оплачено</option>
+              <option value="false">Не оплачено</option>
+            </select>
+          )}
           <span className="text-sm text-gray-500">{total.toLocaleString('ru-RU')} участников</span>
         </div>
         <div className="flex items-center gap-2">
@@ -246,6 +331,22 @@ export default function UsersTab({ productIds, defaultPaidFilter }: { productIds
             onClick={() => setShowSurvey(!showSurvey)}
             className={`text-sm px-3 py-2 rounded-lg border transition-colors ${showSurvey ? 'bg-purple-100 border-purple-300 text-purple-600' : 'border-gray-300 text-gray-500 hover:text-gray-900 hover:border-gray-400'}`}
           >{showSurvey ? '▾ Анкеты' : '▸ Анкеты'}</button>
+          {course && (
+            <>
+              <button
+                onClick={() => setShowLessons(!showLessons)}
+                className={`text-sm px-3 py-2 rounded-lg border transition-colors ${showLessons ? 'bg-blue-50 border-blue-300 text-blue-600' : 'border-gray-300 text-gray-500 hover:text-gray-900 hover:border-gray-400'}`}
+              >{showLessons ? '▾ Уроки' : '▸ Уроки'}</button>
+              {showLessons && (
+                <button
+                  onClick={refreshLessonScraping}
+                  disabled={scrapingProgress}
+                  className="text-sm px-3 py-2 rounded-lg border border-gray-300 text-gray-500 hover:text-gray-900 hover:border-gray-400 disabled:opacity-40"
+                  title="Обновить данные о посещении уроков"
+                >{scrapingProgress ? '⟳ Парсинг...' : '↻ Обновить'}</button>
+              )}
+            </>
+          )}
         <button
           onClick={() => downloadCSV(users)}
           className="text-sm text-gray-500 hover:text-gray-900 border border-gray-300 hover:border-gray-400 px-3 py-2 rounded-lg transition-colors"
@@ -255,15 +356,31 @@ export default function UsersTab({ productIds, defaultPaidFilter }: { productIds
 
       {/* Table */}
       <div className="overflow-auto rounded-xl border border-gray-200" style={{ maxHeight: 'calc(100vh - 260px)' }}>
-        <table className="w-full text-sm">
-          <thead className="sticky top-0 z-10">
-            <tr className="border-b border-gray-200 bg-gray-50 text-gray-500 text-xs uppercase tracking-wide">
-              <th className="text-left px-4 py-3 cursor-pointer hover:text-gray-700 select-none" onClick={() => handleSort('email')}>Email{sortIcon('email')}</th>
-              <th className="text-left px-4 py-3 cursor-pointer hover:text-gray-700 select-none" onClick={() => handleSort('name')}>Имя{sortIcon('name')}</th>
+        <table className="w-full text-sm" style={{ borderCollapse: 'separate', borderSpacing: 0 }}>
+          <thead>
+            <tr className="text-gray-500 text-xs uppercase tracking-wide [&_th]:sticky [&_th]:top-0 [&_th]:bg-gray-50 [&_th]:border-b [&_th]:border-gray-200">
+              <th
+                style={{ position: 'sticky', left: 0, top: 0, zIndex: 50, background: '#f9fafb', width: 50, minWidth: 50, maxWidth: 50 }}
+                className="text-center px-2 py-3 text-gray-400 font-normal"
+              >#</th>
+              <ResizableTh
+                sticky
+                left={50}
+                width={colWidths.email}
+                onResize={(w) => setColWidths({ ...colWidths, email: w })}
+                onClick={() => handleSort('email')}
+                className="text-left px-4 py-3 cursor-pointer hover:text-gray-700 select-none"
+              >Email{sortIcon('email')}</ResizableTh>
+              <ResizableTh
+                sticky
+                left={50 + colWidths.email}
+                width={colWidths.name}
+                onResize={(w) => setColWidths({ ...colWidths, name: w })}
+                onClick={() => handleSort('name')}
+                className="text-left px-4 py-3 cursor-pointer hover:text-gray-700 select-none"
+              >Имя{sortIcon('name')}</ResizableTh>
               <th className="text-left px-4 py-3">Телефон</th>
               <th className="text-left px-4 py-3">Telegram</th>
-              <th className="text-left px-4 py-3">Дата рожд.</th>
-              <th className="text-left px-4 py-3">Возраст</th>
               <th className="text-left px-4 py-3">Страна</th>
               <th className="text-left px-4 py-3">Город</th>
               <th className="text-left px-4 py-3">Продукт(ы)</th>
@@ -277,29 +394,52 @@ export default function UsersTab({ productIds, defaultPaidFilter }: { productIds
                   <span className="line-clamp-2">{q.length > 30 ? q.slice(0, 30) + '...' : q}</span>
                 </th>
               ))}
+              {showLessons && lessons.map((l) => {
+                const activeUsers = users.filter(u => !u.refunded && !u.lost)
+                const visitCount = activeUsers.filter(u => visits[u.id]?.[l.id]).length
+                const pct = activeUsers.length > 0 ? Math.round((visitCount / activeUsers.length) * 100) : 0
+                return (
+                  <th key={l.id} className="text-center px-2 py-3 text-blue-600 min-w-[70px] max-w-[110px]" title={`${l.moduleTitle}: ${l.title}${l.openDate ? '\nОткрыт: ' + l.openDate : ''}\n${visitCount} из ${activeUsers.length}`}>
+                    <div className="flex flex-col items-center gap-0.5">
+                      <span className="text-[10px] font-normal text-gray-400 line-clamp-1">{l.moduleTitle.replace(/^Модуль\s*/, 'М')}</span>
+                      <span className="text-[10px] line-clamp-2 normal-case">{l.title.length > 22 ? l.title.slice(0, 20) + '…' : l.title}</span>
+                      {l.openDate && <span className="text-[9px] text-gray-400 font-normal">{l.openDate}</span>}
+                      <span className="text-xs mt-0.5 font-bold">{pct}%</span>
+                      <span className="text-[10px] text-gray-500 font-normal">{visitCount} из {activeUsers.length}</span>
+                    </div>
+                  </th>
+                )
+              })}
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={14} className="text-center py-12 text-gray-400">Загрузка...</td></tr>
+              <tr><td colSpan={13} className="text-center py-12 text-gray-400">Загрузка...</td></tr>
             ) : users.length === 0 ? (
-              <tr><td colSpan={14} className="text-center py-12 text-gray-400">Нет данных. Нажмите «Синхронизировать».</td></tr>
+              <tr><td colSpan={13} className="text-center py-12 text-gray-400">Нет данных. Нажмите «Синхронизировать».</td></tr>
             ) : (
-              sortedUsers.map((u) => {
+              sortedUsers.map((u, idx) => {
                 const paidOrders = u.orders.filter((o) => o.isPaid)
+                const rowBg = u.refunded ? '#fef2f2' : u.lost ? '#fff7ed' : '#ffffff'
+                const rowText = u.refunded ? 'text-red-700' : u.lost ? 'text-orange-700' : ''
+                const titleAttr = u.refunded ? 'Возврат — не учитывается в статистике' : u.lost ? 'Потерянный участник — не учитывается в статистике' : ''
                 return (
-                  <tr key={u.id} className="border-b border-gray-200 hover:bg-gray-100 transition-colors">
-                    <td className="px-4 py-3 text-gray-800">{u.email || <span className="text-gray-400 italic">нет email</span>}</td>
-                    <td className="px-4 py-3 text-gray-600">{[u.firstName, u.lastName].filter(Boolean).join(' ') || '—'}</td>
+                  <tr key={u.id} className={`border-b border-gray-200 hover:bg-gray-100 transition-colors group ${rowText}`} title={titleAttr}>
+                    <td
+                      className="px-2 py-3 text-center text-xs text-gray-400"
+                      style={{ position: 'sticky', left: 0, zIndex: 20, backgroundColor: rowBg, width: 50, minWidth: 50, maxWidth: 50 }}
+                    >{u.refunded || u.lost ? '' : idx + 1}</td>
+                    <td
+                      className={`px-4 py-3 truncate ${u.refunded ? 'text-red-700' : u.lost ? 'text-orange-700' : 'text-gray-800'}`}
+                      style={{ position: 'sticky', left: 50, zIndex: 20, backgroundColor: rowBg, width: colWidths.email, minWidth: colWidths.email, maxWidth: colWidths.email }}
+                    >{u.refunded ? '↩ ' : u.lost ? '⚠ ' : ''}{u.email || <span className="text-gray-400 italic">нет email</span>}</td>
+                    <td
+                      className={`px-4 py-3 truncate ${u.refunded ? 'text-red-700' : u.lost ? 'text-orange-700' : 'text-gray-600'}`}
+                      style={{ position: 'sticky', left: 50 + colWidths.email, zIndex: 20, backgroundColor: rowBg, width: colWidths.name, minWidth: colWidths.name, maxWidth: colWidths.name }}
+                    >{[u.firstName, u.lastName].filter(Boolean).join(' ') || '—'}</td>
                     <td className="px-4 py-3 text-gray-500 text-xs">{u.phone || '—'}</td>
                     <td className="px-4 py-3 text-gray-500 text-xs">
                       <EditableCell userId={u.id} field="telegram" value={u.telegram || ''} onSave={(v) => { u.telegram = v; setUsers([...users]) }} link={u.telegram ? `https://t.me/${u.telegram.replace(/^@/, '')}` : undefined} />
-                    </td>
-                    <td className="px-4 py-3 text-gray-500 text-xs">
-                      <EditableCell userId={u.id} field="birthDate" value={u.birthDate || ''} onSave={(v) => { u.birthDate = v; setUsers([...users]) }} />
-                    </td>
-                    <td className="px-4 py-3 text-gray-500 text-xs">
-                      <EditableCell userId={u.id} field="age" value={u.age || ''} onSave={(v) => { u.age = v; setUsers([...users]) }} />
                     </td>
                     <td className="px-4 py-3 text-gray-500 text-xs">
                       <EditableCell userId={u.id} field="country" value={u.country || ''} onSave={(v) => { u.country = v; setUsers([...users]) }} />
@@ -339,6 +479,13 @@ export default function UsersTab({ productIds, defaultPaidFilter }: { productIds
                         <span className="line-clamp-3" title={surveyAnswers[u.id]?.[q] || ''}>
                           {surveyAnswers[u.id]?.[q] || '—'}
                         </span>
+                      </td>
+                    ))}
+                    {showLessons && lessons.map((l) => (
+                      <td key={l.id} className="px-2 py-3 text-center">
+                        {visits[u.id]?.[l.id]
+                          ? <span className="text-green-600 font-bold">✓</span>
+                          : <span className="text-gray-300">—</span>}
                       </td>
                     ))}
                   </tr>

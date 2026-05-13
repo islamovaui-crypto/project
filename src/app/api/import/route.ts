@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/middleware'
 import { prisma } from '@/lib/prisma'
 import Papa from 'papaparse'
+import * as XLSX from 'xlsx'
 
 /**
  * CSV Import for lesson progress and survey answers
@@ -25,11 +26,28 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Нужны file и type' }, { status: 400 })
   }
 
-  const text = await file.text()
-  // Auto-detect delimiter: if first line has `;` — use it
-  const firstLine = text.split('\n')[0] || ''
-  const delimiter = firstLine.includes(';') ? ';' : ','
-  const { data } = Papa.parse(text, { header: true, skipEmptyLines: true, delimiter })
+  // Limit file size to 5MB
+  if (file.size > 5 * 1024 * 1024) {
+    return NextResponse.json({ error: 'Файл слишком большой (макс. 5 МБ)' }, { status: 400 })
+  }
+
+  // Detect file type by extension
+  const isExcel = /\.(xlsx|xls)$/i.test(file.name)
+
+  let data: Record<string, string>[] = []
+  if (isExcel) {
+    const buffer = await file.arrayBuffer()
+    const wb = XLSX.read(buffer, { type: 'array' })
+    const sheet = wb.Sheets[wb.SheetNames[0]]
+    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '', raw: false })
+    data = rows.map(r => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, String(v ?? '')])))
+  } else {
+    const text = await file.text()
+    const firstLine = text.split('\n')[0] || ''
+    const delimiter = firstLine.includes(';') ? ';' : ','
+    const parsed = Papa.parse(text, { header: true, skipEmptyLines: true, delimiter })
+    data = parsed.data as Record<string, string>[]
+  }
 
   let imported = 0
   let errors = 0
@@ -79,18 +97,25 @@ export async function POST(req: NextRequest) {
         errors++
       }
     }
-  } else if (type === 'survey') {
+  } else if (type === 'survey' || type === 'csi') {
     const rows = data as Record<string, string>[]
     const headers = rows.length > 0 ? Object.keys(rows[0]) : []
-    console.log('📋 Survey CSV headers:', headers)
+    console.log('📋 Survey CSV rows:', rows.length)
 
-    // Detect GetCourse format: has columns like "Номер", "Дата создания", "Эл. адрес"
-    const isGcFormat = headers.some(h => /номер/i.test(h)) || headers.some(h => /дата создания/i.test(h))
+    // For CSI/NPS — use any email-like column
+    // For survey — strict GetCourse format with "Эл. адрес"/"Эл. почта"
+    const emailColGoogle = type === 'csi' ? headers.find(h => /email|почта|адрес/i.test(h)) : undefined
+    const hasSimpleStructure = headers.some(h => /user_id/i.test(h) || /survey_id/i.test(h))
 
-    if (isGcFormat) {
-      // GetCourse native format: each column after metadata = a question
-      const metaCols = new Set(['Номер', 'Дата создания', 'Пользователь', 'Эл. адрес', 'Эл. почта'])
-      const questionCols = headers.filter(h => !metaCols.has(h))
+    // Date from form (apply to all rows if specified)
+    const importDateStr = formData.get('surveyDate') as string | null
+    const importDate = importDateStr ? new Date(importDateStr) : null
+
+    if (!hasSimpleStructure) {
+      // Each column after metadata = a question
+      const metaPatterns = [/номер/i, /дата создания/i, /пользователь/i, /эл\.\s*адрес/i, /эл\.\s*почта/i, /email/i, /^имя/i, /фамилия/i, /ваш(е|и)?\s*(имя|email|фамил)/i]
+      const questionCols = headers.filter(h => !metaPatterns.some(re => re.test(h)))
+      const emailColName = emailColGoogle || ''
 
       // Use survey name from formData or filename
       const surveyName = formData.get('surveyName') as string || file.name.replace(/\.csv$/i, '').replace(/surveyanswer_export_[\d_-]+\s*/g, '').trim() || 'Импортированная анкета'
@@ -105,9 +130,15 @@ export async function POST(req: NextRequest) {
 
       for (const row of rows) {
         try {
-          const email = (row['Эл. адрес'] || row['Эл. почта'] || '').trim().toLowerCase()
-          const answerId = row['Номер'] || ''
-          const answeredAt = row['Дата создания'] ? new Date(row['Дата создания']) : null
+          const email = (
+            (emailColName && row[emailColName]) ||
+            row['Эл. адрес'] ||
+            row['Эл. почта'] ||
+            ''
+          ).trim().toLowerCase()
+          const answeredAt = row['Дата создания']
+            ? new Date(row['Дата создания'])
+            : importDate
           if (!email) continue
 
           // Find user by email
@@ -188,8 +219,7 @@ export async function POST(req: NextRequest) {
     // Auto-detect columns from CSV headers
     const rows = data as Record<string, string>[]
     const headers = rows.length > 0 ? Object.keys(rows[0]) : []
-    console.log('📋 CSV headers:', headers)
-    if (rows.length > 0) console.log('📋 First row:', JSON.stringify(rows[0]))
+    console.log('📋 Users CSV rows:', rows.length)
 
     // Find email column (flexible matching)
     const emailCol = headers.find(h => /^email$/i.test(h.trim())) || headers.find(h => /email/i.test(h)) || ''
@@ -200,7 +230,6 @@ export async function POST(req: NextRequest) {
     const cityCol = headers.find(h => /^(город|city)$/i.test(h.trim())) || ''
     const countryCol = headers.find(h => /^(страна|country)$/i.test(h.trim())) || ''
 
-    console.log('📋 Detected columns:', { emailCol, tgCol, phoneCol, cityCol, countryCol })
 
     const notFound: string[] = []
 
@@ -233,12 +262,12 @@ export async function POST(req: NextRequest) {
     }
 
     if (notFound.length > 0) {
-      console.log('📋 Not found emails (first 10):', notFound.slice(0, 10))
+      console.log('📋 Not found count:', notFound.length)
     }
 
-    return NextResponse.json({ ok: true, imported, errors, detectedColumns: { emailCol, tgCol, phoneCol }, notFoundSample: notFound.slice(0, 5) })
+    return NextResponse.json({ ok: true, imported, errors })
   } else {
-    return NextResponse.json({ error: 'type должен быть lesson, survey или users' }, { status: 400 })
+    return NextResponse.json({ error: 'type должен быть lesson, survey, csi или users' }, { status: 400 })
   }
 
   return NextResponse.json({ ok: true, imported, errors })

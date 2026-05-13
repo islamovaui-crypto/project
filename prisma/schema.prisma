@@ -16,6 +16,9 @@ model GcUser {
   lastName  String?
   birthDate String?
   age       String?
+  niche     String?  // Ниша (для УНИВЕР): Вайбкодинг, Нейрокреатор, Архитектор
+  refunded  Boolean  @default(false) // возврат — отображается красным, не учитывается в статистике
+  lost      Boolean  @default(false) // потерянный — отображается оранжевым, не учитывается в статистике
   city      String?
   country   String?
   groups    String[] // GetCourse group IDs
@@ -64,6 +67,55 @@ model Order {
   product Product? @relation(fields: [productId], references: [id])
 
   @@map("orders")
+}
+
+// Training (course) modules in GetCourse, e.g. "Модуль 1. Основы"
+model TrainingModule {
+  id         String          @id @default(cuid())
+  streamId   String          @unique // GetCourse stream id
+  title      String          // Модуль 1. Основы и инструменты
+  course     String          // НейроАгент 3.0 / Вайбкодинг 2.0 / etc.
+  order      Int             @default(0)
+  syncedAt   DateTime?
+  lessons    LessonStat[]
+
+  @@map("training_modules")
+}
+
+// Per-lesson stats parsed from GetCourse statistics page
+model LessonStat {
+  id            String          @id @default(cuid())
+  moduleId      String
+  lessonId      String          // GetCourse lesson id
+  title         String
+  status        String          @default("")
+  entered       Int             @default(0)
+  answered      Int             @default(0)
+  passed        Int?
+  order         Int             @default(0)
+  openDate      String?         // Дата открытия (как текст из GetCourse)
+  syncedAt      DateTime        @default(now())
+
+  module        TrainingModule  @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  visits        UserLessonVisit[]
+
+  @@unique([moduleId, lessonId])
+  @@map("lesson_stats")
+}
+
+// Records that a user visited (entered) a specific lesson
+model UserLessonVisit {
+  id         String     @id @default(cuid())
+  userId     String     // GetCourse user id (string)
+  lessonStatId String
+  visitedAt  DateTime   @default(now())
+
+  lessonStat LessonStat @relation(fields: [lessonStatId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, lessonStatId])
+  @@index([userId])
+  @@index([lessonStatId])
+  @@map("user_lesson_visits")
 }
 
 model LessonProgress {

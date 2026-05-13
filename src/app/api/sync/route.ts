@@ -48,8 +48,7 @@ async function runSync(logId: string) {
     // GetCourse fields: id, Email, Имя, Фамилия, Телефон, Страна, Город, Создан
     const users = await fetchUsers(fromDate)
     if (users.length > 0) {
-      console.log('📋 USER FIELDS:', Object.keys(users[0]))
-      console.log('📋 FIRST USER:', JSON.stringify(users[0]))
+      console.log('📋 Users received:', users.length)
     }
     for (const u of users) {
       const id = str(u['id'])
@@ -96,10 +95,9 @@ async function runSync(logId: string) {
     //   Статус, Стоимость RUB, Оплачен, Дата создания, Дата оплаты, Менеджер
     const deals = await fetchDeals(fromDate)
     if (deals.length > 0) {
-      console.log('📋 DEALS FIELDS:', Object.keys(deals[0]))
-      console.log('📋 FIRST DEAL:', JSON.stringify(deals[0]))
+      console.log('📋 Deals received:', deals.length)
     } else {
-      console.log('📋 DEALS: 0 records returned from GetCourse')
+      console.log('📋 Deals: 0 records')
     }
     for (const d of deals) {
       // Try both possible field name variants

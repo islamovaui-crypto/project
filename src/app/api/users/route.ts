@@ -9,12 +9,14 @@ export async function GET(req: NextRequest) {
   if (authError) return authError
 
   const { searchParams } = req.nextUrl
-  const search = searchParams.get('search') || ''
+  const search = (searchParams.get('search') || '').slice(0, 100)
   const productIdsParam = searchParams.getAll('productId')
   const hasOrders = searchParams.get('hasOrders') // 'true' | 'false' | ''
   const isPaid = searchParams.get('isPaid') // 'true' | 'false' | ''
+  const niche = searchParams.get('niche') || ''
+  const alsoNiche = searchParams.get('alsoNiche') || '' // include users with this niche too
   const page = parseInt(searchParams.get('page') || '1')
-  const limit = parseInt(searchParams.get('limit') || '500')
+  const limit = Math.min(parseInt(searchParams.get('limit') || '100'), 100)
   const skip = (page - 1) * limit
 
   const excludedIds = await getExcludedUserIds()
@@ -32,6 +34,20 @@ export async function GET(req: NextRequest) {
     userIdsForProduct = [...new Set(rows.map((r) => r.userId))]
   }
 
+  // If alsoNiche is set, add users with that niche to the product filter
+  if (alsoNiche) {
+    const nicheUsers = await prisma.gcUser.findMany({
+      where: { niche: { contains: alsoNiche } },
+      select: { id: true },
+    })
+    const nicheIds = nicheUsers.map(u => u.id)
+    if (userIdsForProduct) {
+      userIdsForProduct = [...new Set([...userIdsForProduct, ...nicheIds])]
+    } else {
+      userIdsForProduct = nicheIds
+    }
+  }
+
   // isPaid filter scoped to selected products
   let userIdsPaid: string[] | undefined
   let userIdsNotPaid: string[] | undefined
@@ -41,6 +57,20 @@ export async function GET(req: NextRequest) {
       select: { userId: true },
     })
     userIdsPaid = [...new Set(rows.map((r) => r.userId))]
+    // Add users from alsoNiche who have any paid order, plus manually-added users
+    if (alsoNiche) {
+      const nicheUsers = await prisma.gcUser.findMany({
+        where: {
+          niche: { contains: alsoNiche },
+          OR: [
+            { orders: { some: { isPaid: true } } },
+            { id: { startsWith: 'manual_' } },
+          ],
+        },
+        select: { id: true },
+      })
+      userIdsPaid = [...new Set([...userIdsPaid, ...nicheUsers.map(u => u.id)])]
+    }
   } else if (isPaid === 'false') {
     const paidRows = await prisma.order.findMany({
       where: { ...orderScope, isPaid: true },
@@ -56,7 +86,7 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  const where: Parameters<typeof prisma.gcUser.findMany>[0]['where'] = {
+  const where: NonNullable<Parameters<typeof prisma.gcUser.findMany>[0]>['where'] = {
     id: {
       notIn: [...excludedIds],
       ...(userIdsPaid ? { in: userIdsPaid } : {}),
@@ -66,6 +96,7 @@ export async function GET(req: NextRequest) {
     ...(hasOrders === 'true' ? { orders: { some: {} } } : {}),
     ...(hasOrders === 'false' ? { orders: { none: {} } } : {}),
     ...(isPaid === 'false' && !userIdsNotPaid ? { NOT: { orders: { some: { isPaid: true } } } } : {}),
+    ...(niche && !alsoNiche ? { niche: { contains: niche } } : {}),
     ...(search
       ? {
           OR: [
@@ -86,7 +117,10 @@ export async function GET(req: NextRequest) {
       orderBy: { syncedAt: 'desc' },
       include: {
         orders: {
-          where: productIdsParam.length > 0 ? { productId: { in: productIdsParam } } : undefined,
+          // If alsoNiche is set — show ALL paid orders (niche users may have orders on other products)
+          where: alsoNiche
+            ? undefined
+            : productIdsParam.length > 0 ? { productId: { in: productIdsParam } } : undefined,
           select: { id: true, productTitle: true, productId: true, isPaid: true, status: true, amount: true, paidAt: true, gcCreatedAt: true },
           orderBy: { gcCreatedAt: 'desc' },
           take: 5,
