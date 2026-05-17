@@ -38,6 +38,12 @@ const PRODUCT_TABS = [
     match: (name: string) => /универ/i.test(name) && !/куратор/i.test(name),
   },
   {
+    id: 'neurostart',
+    label: 'НейроСтарт',
+    match: () => false,
+    niche: 'НейроСтарт',
+  },
+  {
     id: 'neurocreator',
     label: 'Нейрокреатор',
     match: () => false, // special: filter by niche, not product

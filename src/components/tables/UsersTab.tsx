@@ -45,27 +45,32 @@ interface GcUser {
   _count: { orders: number; lessonProgress: number; surveyAnswers: number }
 }
 
-type SortKey = 'email' | 'name' | 'paid' | 'paidAt' | 'lessons' | 'surveys' | 'id'
+type SortKey = 'email' | 'name' | 'paid' | 'paidAt' | 'lessons' | 'surveys' | 'id' | 'activity'
 type SortDir = 'asc' | 'desc'
 
+function isVipOrder(o: Order): boolean {
+  return /вип|vip/i.test(o.productTitle || '')
+}
+
 function getPaidDate(u: GcUser): number {
-  const paid = u.orders.filter((o) => o.isPaid)
+  const paid = u.orders.filter((o) => o.isPaid && !isVipOrder(o))
   if (paid.length === 0) return 0
   const dates = paid.map((o) => o.paidAt || o.gcCreatedAt).filter(Boolean) as string[]
   if (dates.length === 0) return 0
   return Math.max(...dates.map((d) => new Date(d).getTime()))
 }
 
-function sortUsers(users: GcUser[], key: SortKey, dir: SortDir): GcUser[] {
+function sortUsers(users: GcUser[], key: SortKey, dir: SortDir, visitCounts?: Record<string, number>): GcUser[] {
   const sorted = [...users].sort((a, b) => {
     let cmp = 0
     switch (key) {
       case 'email': cmp = (a.email || '').localeCompare(b.email || ''); break
       case 'name': cmp = `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`); break
-      case 'paid': cmp = a.orders.filter((o) => o.isPaid).length - b.orders.filter((o) => o.isPaid).length; break
+      case 'paid': cmp = a.orders.filter((o) => o.isPaid && !isVipOrder(o)).length - b.orders.filter((o) => o.isPaid && !isVipOrder(o)).length; break
       case 'paidAt': cmp = getPaidDate(a) - getPaidDate(b); break
       case 'lessons': cmp = (a._count.lessonProgress || 0) - (b._count.lessonProgress || 0); break
       case 'surveys': cmp = (a._count.surveyAnswers || 0) - (b._count.surveyAnswers || 0); break
+      case 'activity': cmp = (visitCounts?.[a.id] || 0) - (visitCounts?.[b.id] || 0); break
       case 'id': cmp = a.id.localeCompare(b.id); break
     }
     return dir === 'asc' ? cmp : -cmp
@@ -157,7 +162,7 @@ function ResizableTh({ width, onResize, children, className, sticky, left, onCli
 function downloadCSV(users: GcUser[]) {
   const headers = ['ID', 'Email', 'Имя', 'Фамилия', 'Телефон', 'Telegram', 'Дата рождения', 'Возраст', 'Страна', 'Город', 'Продукты', 'Оплачено', 'Дата покупки', 'Заказы', 'Уроки']
   const rows = users.map((u) => {
-    const paid = u.orders.filter((o) => o.isPaid)
+    const paid = u.orders.filter((o) => o.isPaid && !isVipOrder(o))
     const paidDates = paid.map((o) => o.paidAt || o.gcCreatedAt).filter(Boolean).map((d) => new Date(d!).toLocaleDateString('ru-RU')).join('; ')
     return [
       u.id,
@@ -170,7 +175,7 @@ function downloadCSV(users: GcUser[]) {
       u.age || '',
       u.country || '',
       u.city || '',
-      u.orders.map((o) => o.productTitle).join('; '),
+      u.orders.filter(o => !isVipOrder(o)).map((o) => o.productTitle).join('; '),
       paid.length,
       paidDates,
       u._count.orders,
@@ -210,11 +215,23 @@ export default function UsersTab({ productIds, niche, alsoNiche, defaultPaidFilt
       setSortDir(sortDir === 'asc' ? 'desc' : 'asc')
     } else {
       setSortKey(key)
-      setSortDir(key === 'paidAt' || key === 'paid' || key === 'lessons' || key === 'surveys' ? 'desc' : 'asc')
+      setSortDir(key === 'paidAt' || key === 'paid' || key === 'lessons' || key === 'surveys' || key === 'activity' ? 'desc' : 'asc')
     }
   }
 
-  const sortedUsersRaw = sortUsers(users, sortKey, sortDir)
+  // Visit counts per user (for activity ranking)
+  const visitCounts: Record<string, number> = {}
+  for (const u of users) {
+    visitCounts[u.id] = Object.keys(visits[u.id] || {}).length
+  }
+  const totalLessons = lessons.length
+  const activeUsers = users.filter(u => !u.refunded && !u.lost)
+  const activeWithVisits = activeUsers.filter(u => (visitCounts[u.id] || 0) > 0)
+  const avgActivity = showLessons && totalLessons > 0 && activeWithVisits.length > 0
+    ? Math.round(activeWithVisits.reduce((sum, u) => sum + (visitCounts[u.id] || 0), 0) / activeWithVisits.length / totalLessons * 100)
+    : null
+
+  const sortedUsersRaw = sortUsers(users, sortKey, sortDir, visitCounts)
   // Pin refunded/lost to the bottom
   const sortedUsers = [
     ...sortedUsersRaw.filter(u => !u.refunded && !u.lost),
@@ -336,7 +353,10 @@ export default function UsersTab({ productIds, niche, alsoNiche, defaultPaidFilt
               <button
                 onClick={() => setShowLessons(!showLessons)}
                 className={`text-sm px-3 py-2 rounded-lg border transition-colors ${showLessons ? 'bg-blue-50 border-blue-300 text-blue-600' : 'border-gray-300 text-gray-500 hover:text-gray-900 hover:border-gray-400'}`}
-              >{showLessons ? '▾ Уроки' : '▸ Уроки'}</button>
+              >
+                {showLessons ? '▾ Уроки' : '▸ Уроки'}
+                {avgActivity !== null && <span className="ml-1.5 text-xs font-semibold text-orange-500">ср. {avgActivity}%</span>}
+              </button>
               {showLessons && (
                 <button
                   onClick={refreshLessonScraping}
@@ -386,6 +406,14 @@ export default function UsersTab({ productIds, niche, alsoNiche, defaultPaidFilt
               <th className="text-left px-4 py-3">Продукт(ы)</th>
               <th className="text-center px-4 py-3 cursor-pointer hover:text-gray-700 select-none" onClick={() => handleSort('paid')}>Оплачено{sortIcon('paid')}</th>
               <th className="text-left px-4 py-3 cursor-pointer hover:text-gray-700 select-none" onClick={() => handleSort('paidAt')}>Дата покупки{sortIcon('paidAt')}</th>
+              {showLessons && totalLessons > 0 && (
+                <th className="text-center px-4 py-3 cursor-pointer hover:text-gray-700 select-none text-orange-500" onClick={() => handleSort('activity')}>
+                  <div className="flex flex-col items-center gap-0.5">
+                    <span>Активность{sortIcon('activity')}</span>
+                    {avgActivity !== null && <span className="text-[10px] font-normal text-gray-400 normal-case">ср. {avgActivity}%</span>}
+                  </div>
+                </th>
+              )}
               <th className="text-right px-4 py-3 cursor-pointer hover:text-gray-700 select-none" onClick={() => handleSort('lessons')}>Уроки{sortIcon('lessons')}</th>
               <th className="text-right px-4 py-3 cursor-pointer hover:text-gray-700 select-none" onClick={() => handleSort('surveys')}>Анкеты{sortIcon('surveys')}</th>
               <th className="text-left px-4 py-3 cursor-pointer hover:text-gray-700 select-none" onClick={() => handleSort('id')}>ID{sortIcon('id')}</th>
@@ -419,7 +447,7 @@ export default function UsersTab({ productIds, niche, alsoNiche, defaultPaidFilt
               <tr><td colSpan={13} className="text-center py-12 text-gray-400">Нет данных. Нажмите «Синхронизировать».</td></tr>
             ) : (
               sortedUsers.map((u, idx) => {
-                const paidOrders = u.orders.filter((o) => o.isPaid)
+                const paidOrders = u.orders.filter((o) => o.isPaid && !isVipOrder(o))
                 const rowBg = u.refunded ? '#fef2f2' : u.lost ? '#fff7ed' : '#ffffff'
                 const rowText = u.refunded ? 'text-red-700' : u.lost ? 'text-orange-700' : ''
                 const titleAttr = u.refunded ? 'Возврат — не учитывается в статистике' : u.lost ? 'Потерянный участник — не учитывается в статистике' : ''
@@ -448,18 +476,21 @@ export default function UsersTab({ productIds, niche, alsoNiche, defaultPaidFilt
                       <EditableCell userId={u.id} field="city" value={u.city || ''} onSave={(v) => { u.city = v; setUsers([...users]) }} />
                     </td>
                     <td className="px-4 py-3">
-                      {u.orders.length === 0 ? (
-                        <span className="text-gray-400 text-xs">нет заказов</span>
-                      ) : (
-                        <div className="flex flex-col gap-0.5">
-                          {u.orders.slice(0, 2).map((o) => (
-                            <span key={o.id} className={`text-xs px-2 py-0.5 rounded-full w-fit ${o.isPaid ? 'bg-green-100 text-green-600' : 'bg-gray-200 text-gray-500'}`}>
-                              {o.productTitle || '—'}
-                            </span>
-                          ))}
-                          {u.orders.length > 2 && <span className="text-xs text-gray-400">+{u.orders.length - 2}</span>}
-                        </div>
-                      )}
+                      {(() => {
+                        const visibleOrders = u.orders.filter(o => !isVipOrder(o))
+                        return visibleOrders.length === 0 ? (
+                          <span className="text-gray-400 text-xs">нет заказов</span>
+                        ) : (
+                          <div className="flex flex-col gap-0.5">
+                            {visibleOrders.slice(0, 2).map((o) => (
+                              <span key={o.id} className={`text-xs px-2 py-0.5 rounded-full w-fit ${o.isPaid ? 'bg-green-100 text-green-600' : 'bg-gray-200 text-gray-500'}`}>
+                                {o.productTitle || '—'}
+                              </span>
+                            ))}
+                            {visibleOrders.length > 2 && <span className="text-xs text-gray-400">+{visibleOrders.length - 2}</span>}
+                          </div>
+                        )
+                      })()}
                     </td>
                     <td className="px-4 py-3 text-center">
                       {paidOrders.length > 0
@@ -471,6 +502,21 @@ export default function UsersTab({ productIds, niche, alsoNiche, defaultPaidFilt
                         ? paidOrders.map((o) => o.paidAt ? new Date(o.paidAt).toLocaleDateString('ru-RU') : o.gcCreatedAt ? new Date(o.gcCreatedAt).toLocaleDateString('ru-RU') : '—').join(', ')
                         : '—'}
                     </td>
+                    {showLessons && totalLessons > 0 && (() => {
+                      const vc = visitCounts[u.id] || 0
+                      const pct = totalLessons > 0 ? Math.round(vc / totalLessons * 100) : 0
+                      const color = pct >= 70 ? 'bg-green-500' : pct >= 40 ? 'bg-yellow-400' : pct >= 15 ? 'bg-orange-400' : 'bg-red-400'
+                      return (
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2 min-w-[80px]">
+                            <div className="flex-1 bg-gray-100 rounded-full h-1.5 min-w-[40px]">
+                              <div className={`h-1.5 rounded-full ${color}`} style={{ width: pct + '%' }} />
+                            </div>
+                            <span className="text-xs text-gray-600 w-8 text-right">{pct}%</span>
+                          </div>
+                        </td>
+                      )
+                    })()}
                     <td className="px-4 py-3 text-right text-gray-600">{u._count.lessonProgress || 0}</td>
                     <td className="px-4 py-3 text-right text-gray-600">{u._count.surveyAnswers || 0}</td>
                     <td className="px-4 py-3 font-mono text-xs text-gray-400">{u.id}</td>
