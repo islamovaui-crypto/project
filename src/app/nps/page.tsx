@@ -194,7 +194,7 @@ function NpsBarChart({ months, programs, npsMatrix, mode, selectedProgram }: {
   )
 }
 
-interface SelectedCell { prog: string; monthKey: string; monthLabel: string }
+interface SelectedCell { prog: string; monthKey: string; monthLabel: string; focus: 'nps' | 'csi' }
 
 function CellDetailPanel({
   cell,
@@ -205,7 +205,7 @@ function CellDetailPanel({
   data: NpsData
   onClose: () => void
 }) {
-  const { prog, monthKey, monthLabel } = cell
+  const { prog, monthKey, monthLabel, focus } = cell
 
   // find previous month
   const monthIdx = data.months.findIndex(m => m.key === monthKey)
@@ -274,81 +274,84 @@ function CellDetailPanel({
         </div>
 
         <div className="px-5 py-4 space-y-5 flex-1">
-          {/* NPS summary */}
-          <div>
-            <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">NPS</div>
-            <div className="flex items-center gap-3 mb-3">
-              <span className={`text-2xl font-bold px-3 py-1 rounded-lg ${npsColor(curNPS)}`}>
-                {curNPS !== null ? `${Math.round(curNPS * 100)}%` : '—'}
-              </span>
-              {prevNPS !== null && (
-                <span className="text-sm text-gray-400">
-                  было {Math.round(prevNPS * 100)}%
-                  <DeltaBadge d={npsDelta} unit="%" />
-                </span>
-              )}
-              <span className="text-xs text-gray-400 ml-auto">{cur.n} отв.</span>
-            </div>
-
-            {/* Promoter/passive/detractor bars */}
-            {cur.n > 0 && (
-              <div className="space-y-1.5">
-                {[
-                  { label: 'Промоутеры (9–10)', count: cur.promoters.length, prevCount: prev?.promoters.length ?? null, color: 'bg-green-400' },
-                  { label: 'Нейтральные (7–8)', count: cur.passives.length, prevCount: prev?.passives.length ?? null, color: 'bg-yellow-300' },
-                  { label: 'Критики (0–6)', count: cur.detractors.length, prevCount: prev?.detractors.length ?? null, color: 'bg-red-400' },
-                ].map(({ label, count, prevCount, color }) => {
-                  const pct2 = cur.n > 0 ? Math.round(count / cur.n * 100) : 0
-                  const prevPct = prev && prev.n > 0 && prevCount !== null ? Math.round(prevCount / prev.n * 100) : null
-                  const d = prevPct !== null ? pct2 - prevPct : null
-                  return (
-                    <div key={label}>
-                      <div className="flex items-center justify-between mb-0.5">
-                        <span className="text-xs text-gray-600">{label}</span>
-                        <span className="text-xs font-semibold text-gray-700">
-                          {count} ({pct2}%)
-                          {prevPct !== null && <DeltaBadge d={d} unit="%" />}
-                        </span>
-                      </div>
-                      <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                        <div className={`h-full ${color} rounded-full transition-all`} style={{ width: `${pct2}%` }} />
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* CSI breakdown */}
-          <div>
-            <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">CSI по категориям</div>
-            <div className="space-y-2">
-              {csiFields.map(field => {
-                const cur2 = avgField(curRows, field)
-                const prev2 = prevRows.length > 0 ? avgField(prevRows, field) : null
-                const d = delta(cur2, prev2)
-                const pctVal = cur2 !== null ? cur2 / 10 : null
-                return (
-                  <div key={field} className="flex items-center gap-2">
-                    <span className="text-xs text-gray-500 w-24">{csiLabels[field]}</span>
-                    <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full rounded-full ${pctVal !== null && pctVal >= 0.88 ? 'bg-green-400' : pctVal !== null && pctVal >= 0.82 ? 'bg-yellow-300' : 'bg-red-400'}`}
-                        style={{ width: `${pctVal !== null ? pctVal * 100 : 0}%` }}
-                      />
-                    </div>
-                    <span className="text-xs font-semibold text-gray-700 w-10 text-right">
-                      {cur2 !== null ? cur2.toFixed(1) : '—'}
+          {(() => {
+            const npsBlock = (
+              <div key="nps">
+                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">NPS</div>
+                <div className="flex items-center gap-3 mb-3">
+                  <span className={`text-2xl font-bold px-3 py-1 rounded-lg ${npsColor(curNPS)}`}>
+                    {curNPS !== null ? `${Math.round(curNPS * 100)}%` : '—'}
+                  </span>
+                  {prevNPS !== null && (
+                    <span className="text-sm text-gray-400">
+                      было {Math.round(prevNPS * 100)}%
+                      <DeltaBadge d={npsDelta} unit="%" />
                     </span>
-                    {d !== null && <DeltaBadge d={d} />}
+                  )}
+                  <span className="text-xs text-gray-400 ml-auto">{cur.n} отв.</span>
+                </div>
+                {cur.n > 0 && (
+                  <div className="space-y-1.5">
+                    {[
+                      { label: 'Промоутеры (9–10)', count: cur.promoters.length, prevCount: prev?.promoters.length ?? null, color: 'bg-green-400' },
+                      { label: 'Нейтральные (7–8)', count: cur.passives.length, prevCount: prev?.passives.length ?? null, color: 'bg-yellow-300' },
+                      { label: 'Критики (0–6)', count: cur.detractors.length, prevCount: prev?.detractors.length ?? null, color: 'bg-red-400' },
+                    ].map(({ label, count, prevCount, color }) => {
+                      const pct2 = cur.n > 0 ? Math.round(count / cur.n * 100) : 0
+                      const prevPct = prev && prev.n > 0 && prevCount !== null ? Math.round(prevCount / prev.n * 100) : null
+                      const d = prevPct !== null ? pct2 - prevPct : null
+                      return (
+                        <div key={label}>
+                          <div className="flex items-center justify-between mb-0.5">
+                            <span className="text-xs text-gray-600">{label}</span>
+                            <span className="text-xs font-semibold text-gray-700">
+                              {count} ({pct2}%)
+                              {prevPct !== null && <DeltaBadge d={d} unit="%" />}
+                            </span>
+                          </div>
+                          <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                            <div className={`h-full ${color} rounded-full transition-all`} style={{ width: `${pct2}%` }} />
+                          </div>
+                        </div>
+                      )
+                    })}
                   </div>
-                )
-              })}
-            </div>
-          </div>
+                )}
+              </div>
+            )
 
-          {/* What's driving decline */}
+            const csiBlock = (
+              <div key="csi">
+                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">CSI по категориям</div>
+                <div className="space-y-2">
+                  {csiFields.map(field => {
+                    const cur2 = avgField(curRows, field)
+                    const prev2 = prevRows.length > 0 ? avgField(prevRows, field) : null
+                    const d = delta(cur2, prev2)
+                    const pctVal = cur2 !== null ? cur2 / 10 : null
+                    return (
+                      <div key={field} className="flex items-center gap-2">
+                        <span className="text-xs text-gray-500 w-24">{csiLabels[field]}</span>
+                        <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full ${pctVal !== null && pctVal >= 0.88 ? 'bg-green-400' : pctVal !== null && pctVal >= 0.82 ? 'bg-yellow-300' : 'bg-red-400'}`}
+                            style={{ width: `${pctVal !== null ? pctVal * 100 : 0}%` }}
+                          />
+                        </div>
+                        <span className="text-xs font-semibold text-gray-700 w-10 text-right">
+                          {cur2 !== null ? cur2.toFixed(1) : '—'}
+                        </span>
+                        {d !== null && <DeltaBadge d={d} />}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+
+            return focus === 'nps' ? [npsBlock, csiBlock] : [csiBlock, npsBlock]
+          })()}
+
           {detractorComments.length > 0 && (
             <div>
               <div className="text-xs font-semibold text-red-500 uppercase tracking-wide mb-2">Причины снижения (критики)</div>
@@ -363,7 +366,6 @@ function CellDetailPanel({
             </div>
           )}
 
-          {/* What's driving growth */}
           {promoterComments.length > 0 && (
             <div>
               <div className="text-xs font-semibold text-green-600 uppercase tracking-wide mb-2">Причины роста (промоутеры)</div>
@@ -583,7 +585,7 @@ export default function NpsPage() {
               grandTotal={data.grandNPS}
               colorFn={npsColor}
               formatFn={pct}
-              onCellClick={(prog, key, label) => setSelectedCell({ prog, monthKey: key, monthLabel: label })}
+              onCellClick={(prog, key, label) => setSelectedCell({ prog, monthKey: key, monthLabel: label, focus: 'nps' })}
             />
 
             {/* CSI matrix */}
@@ -597,7 +599,7 @@ export default function NpsPage() {
               grandTotal={data.grandCSI}
               colorFn={csiColor}
               formatFn={pct}
-              onCellClick={(prog, key, label) => setSelectedCell({ prog, monthKey: key, monthLabel: label })}
+              onCellClick={(prog, key, label) => setSelectedCell({ prog, monthKey: key, monthLabel: label, focus: 'csi' })}
             />
 
             {/* Bar chart */}
