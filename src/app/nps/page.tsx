@@ -47,6 +47,121 @@ const CSI_LABELS: Record<CsiField, string> = {
   organization: 'Организация',
 }
 
+const CSI_NORMS: Record<CsiField, number> = {
+  lessons: 0.88,
+  live: 0.92,
+  curator: 0.85,
+  organization: 0.87,
+}
+
+// Тематические кластеры для анализа жалоб
+const COMPLAINT_THEMES = [
+  {
+    id: 'curator',
+    label: 'Куратор / обратная связь',
+    keywords: ['куратор', 'обратн', 'провер', 'домашн', ' дз', 'дз ', 'проверк', 'ответ', 'не отвеча'],
+    recommendations: [
+      'Провести calibration-сессию с кураторами по стандарту обратной связи',
+      'Установить норматив: ответ на ДЗ не позднее 24 часов',
+      'Добавить шаблон проверки ДЗ с конкретными критериями оценки',
+    ],
+  },
+  {
+    id: 'live',
+    label: 'Живые встречи / эфиры',
+    keywords: ['живые', 'эфир', 'встреч', 'прямой', 'трансл', 'онлайн', 'запис эфир'],
+    recommendations: [
+      'Анонсировать даты эфиров минимум за 3 дня',
+      'Записи выкладывать в течение 24 часов после эфира',
+      'Добавить Q&A-сегмент в конце каждого эфира',
+    ],
+  },
+  {
+    id: 'lessons',
+    label: 'Уроки / контент',
+    keywords: ['урок', 'запис', 'видео', 'материал', 'лекц', 'контент', 'устарел', 'неактуал'],
+    recommendations: [
+      'Провести аудит уроков старше 3 месяцев, обновить устаревшее',
+      'Добавить текстовые конспекты к ключевым урокам',
+      'Ввести практические задания после каждого блока',
+    ],
+  },
+  {
+    id: 'organization',
+    label: 'Организация / структура',
+    keywords: ['организ', 'расписан', 'чат', 'структур', 'навигац', 'хаос', 'путан', 'непонятн', 'не понима'],
+    recommendations: [
+      'Упростить структуру чатов до 3–4 максимум',
+      'Добавить навигацию и расписание в шапку чата',
+      'Еженедельная сводка: что было, что будет на этой неделе',
+    ],
+  },
+  {
+    id: 'platform',
+    label: 'Платформа / инструменты',
+    keywords: ['платформ', 'инструмент', 'make', 'n8n', 'европ', 'недоступ', 'заблокир', 'альтернатив'],
+    recommendations: [
+      'Добавить урок по альтернативным платформам (Make, n8n и аналоги)',
+      'Создать FAQ по часто встречающимся платформенным вопросам',
+    ],
+  },
+  {
+    id: 'value',
+    label: 'Ценность / ожидания',
+    keywords: ['ожидан', 'обещ', 'не то', 'не оправд', 'обман', 'по-другому', 'иначе', 'думал', 'рассчитыв'],
+    recommendations: [
+      'Усилить онбординг: конкретные кейсы результатов с цифрами',
+      'Добавить чекпоинт прогресса на 2–3 неделе обучения',
+      'Уточнить позиционирование программы до старта',
+    ],
+  },
+  {
+    id: 'pace',
+    label: 'Темп / нагрузка',
+    keywords: ['темп', 'нагрузк', 'слишком', 'быстро', 'медленн', 'успева', 'не успев', 'много', 'перегруз'],
+    recommendations: [
+      'Пересмотреть распределение материала по неделям',
+      'Добавить опциональные модули для продвинутых участников',
+      'Ввести дни «без новых заданий» для закрепления',
+    ],
+  },
+]
+
+type ThemeResult = { id: string; label: string; count: number; recommendations: string[] }
+
+function detectThemes(comments: string[]): ThemeResult[] {
+  const counts: Record<string, number> = {}
+  for (const text of comments) {
+    const t = text.toLowerCase()
+    for (const theme of COMPLAINT_THEMES) {
+      if (theme.keywords.some(kw => t.includes(kw))) {
+        counts[theme.id] = (counts[theme.id] || 0) + 1
+      }
+    }
+  }
+  return COMPLAINT_THEMES
+    .filter(th => counts[th.id])
+    .map(th => ({ id: th.id, label: th.label, count: counts[th.id], recommendations: th.recommendations }))
+    .sort((a, b) => b.count - a.count)
+}
+
+function csiRecommendations(csiData: Record<CsiField, number | null>): string[] {
+  const recs: string[] = []
+  const fieldRecs: Record<CsiField, string> = {
+    lessons: `Уроки ниже нормы (${Math.round(CSI_NORMS.lessons * 100)}%) — пересмотреть качество и актуальность видеоматериалов`,
+    live: `Живые встречи ниже нормы (${Math.round(CSI_NORMS.live * 100)}%) — усилить качество и регулярность эфиров`,
+    curator: `Куратор ниже нормы (${Math.round(CSI_NORMS.curator * 100)}%) — провести работу по стандарту обратной связи`,
+    organization: `Организация ниже нормы (${Math.round(CSI_NORMS.organization * 100)}%) — улучшить структуру и навигацию продукта`,
+  }
+  for (const field of Object.keys(CSI_NORMS) as CsiField[]) {
+    const v = csiData[field]
+    if (v !== null && v / 10 < CSI_NORMS[field]) {
+      recs.push(fieldRecs[field])
+    }
+  }
+  return recs
+}
+
 function pct(v: number | null, digits = 0): string {
   if (v === null) return '—'
   return `${(v * 100).toFixed(digits)}%`
@@ -257,6 +372,18 @@ function CellDetailPanel({
   const detractorComments = curRows.filter(r => r.nps !== null && r.nps <= 6 && r.comment).slice(0, 3)
   const promoterComments = curRows.filter(r => r.nps !== null && r.nps >= 9 && r.comment).slice(0, 3)
 
+  // recommendations
+  const detractorTexts = curRows.filter(r => r.nps !== null && r.nps <= 6 && r.comment).map(r => r.comment)
+  const themes = detectThemes(detractorTexts)
+  const curCsiData: Record<CsiField, number | null> = {
+    lessons: avgField(curRows, 'lessons'),
+    live: avgField(curRows, 'live'),
+    curator: avgField(curRows, 'curator'),
+    organization: avgField(curRows, 'organization'),
+  }
+  const csiRecs = csiRecommendations(curCsiData)
+  const hasRecs = themes.length > 0 || csiRecs.length > 0
+
   return (
     <div className="fixed inset-0 z-50 flex" onClick={onClose}>
       <div className="flex-1" />
@@ -379,6 +506,33 @@ function CellDetailPanel({
               </div>
             </div>
           )}
+
+          {hasRecs && (
+            <div>
+              <div className="text-xs font-semibold text-blue-600 uppercase tracking-wide mb-2">Что делать</div>
+              <div className="space-y-3">
+                {csiRecs.map((rec, i) => (
+                  <div key={i} className="flex gap-2">
+                    <span className="text-blue-400 mt-0.5 flex-shrink-0">→</span>
+                    <span className="text-xs text-gray-700">{rec}</span>
+                  </div>
+                ))}
+                {themes.map(theme => (
+                  <div key={theme.id}>
+                    <div className="text-xs text-gray-500 font-medium mb-1">
+                      {theme.label} <span className="text-gray-400">({theme.count} упом.)</span>
+                    </div>
+                    {theme.recommendations.slice(0, 2).map((rec, i) => (
+                      <div key={i} className="flex gap-2 mb-1">
+                        <span className="text-blue-400 mt-0.5 flex-shrink-0">→</span>
+                        <span className="text-xs text-gray-700">{rec}</span>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -460,6 +614,180 @@ function Matrix({
             </tr>
           </tbody>
         </table>
+      </div>
+    </div>
+  )
+}
+
+function TrendsSection({ data }: { data: NpsData }) {
+  const { programs, months, comments, npsMatrix, csiMatrix } = data
+  if (months.length < 2) return null
+
+  const csiFields: CsiField[] = ['lessons', 'live', 'curator', 'organization']
+
+  // Повторяющиеся жалобы: темы в отзывах критиков по месяцам
+  type MonthThemes = Record<string, Set<string>> // monthKey → set of theme ids
+  const themesByMonth: MonthThemes = {}
+  for (const mo of months) {
+    const detTexts = comments
+      .filter(c => c.monthKey === mo.key && c.nps !== null && c.nps <= 6 && c.comment)
+      .map(c => c.comment)
+    const detected = detectThemes(detTexts)
+    themesByMonth[mo.key] = new Set(detected.map(t => t.id))
+  }
+  const repeatingThemes = COMPLAINT_THEMES.filter(th =>
+    Object.values(themesByMonth).filter(s => s.has(th.id)).length >= 2
+  ).map(th => ({
+    ...th,
+    monthCount: Object.values(themesByMonth).filter(s => s.has(th.id)).length,
+  }))
+
+  // Динамика CSI по категориям: последние 2 месяца
+  const lastMo = months[months.length - 1]
+  const prevMo = months[months.length - 2]
+
+  function avgCat(mo: string, field: CsiField): number | null {
+    const vals = comments
+      .filter(c => c.monthKey === mo && c[field] !== null && (c[field] as number) > 0)
+      .map(c => c[field] as number)
+    return vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : null
+  }
+
+  function trendIcon(cur: number | null, prev: number | null) {
+    if (cur === null || prev === null) return <span className="text-gray-300">—</span>
+    const d = cur - prev
+    if (d > 0.2) return <span className="text-green-500 font-bold">↑</span>
+    if (d < -0.2) return <span className="text-red-500 font-bold">↓</span>
+    return <span className="text-gray-400">→</span>
+  }
+
+  function npsTrendIcon(prog: string) {
+    const cur = npsMatrix[prog]?.[lastMo.key] ?? null
+    const prev = npsMatrix[prog]?.[prevMo.key] ?? null
+    if (cur === null || prev === null) return <span className="text-gray-300">—</span>
+    const d = (cur - prev) * 100
+    if (d > 2) return <span className="text-green-500 font-bold">↑ +{Math.round(d)}%</span>
+    if (d < -2) return <span className="text-red-500 font-bold">↓ {Math.round(d)}%</span>
+    return <span className="text-gray-400">→ стабильно</span>
+  }
+
+  // Общие рекомендации по всей базе
+  const allDetTexts = comments.filter(c => c.nps !== null && c.nps <= 6 && c.comment).map(c => c.comment)
+  const globalThemes = detectThemes(allDetTexts)
+  const lastMoCsi: Record<CsiField, number | null> = {
+    lessons: avgCat(lastMo.key, 'lessons'),
+    live: avgCat(lastMo.key, 'live'),
+    curator: avgCat(lastMo.key, 'curator'),
+    organization: avgCat(lastMo.key, 'organization'),
+  }
+  const globalCsiRecs = csiRecommendations(lastMoCsi)
+
+  return (
+    <div className="space-y-6">
+      <h2 className="text-sm font-semibold text-gray-700">Тренды и аналитика</h2>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Повторяющиеся жалобы */}
+        <div className="border border-gray-200 rounded-xl p-4">
+          <div className="text-xs font-semibold text-red-500 uppercase tracking-wide mb-3">
+            Повторяющиеся жалобы
+          </div>
+          {repeatingThemes.length === 0 ? (
+            <div className="text-xs text-gray-400">Устойчивых жалоб не выявлено</div>
+          ) : (
+            <div className="space-y-2.5">
+              {repeatingThemes.map(th => (
+                <div key={th.id}>
+                  <div className="flex items-center justify-between mb-0.5">
+                    <span className="text-xs font-medium text-gray-700">{th.label}</span>
+                    <span className="text-xs text-red-400">{th.monthCount} мес.</span>
+                  </div>
+                  <div className="h-1.5 bg-red-50 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-red-300 rounded-full"
+                      style={{ width: `${Math.min(100, th.monthCount / months.length * 100)}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Динамика CSI и NPS по программам */}
+        <div className="border border-gray-200 rounded-xl p-4">
+          <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+            Динамика {prevMo.label} → {lastMo.label}
+          </div>
+          <div className="overflow-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="text-gray-400 border-b border-gray-100">
+                  <th className="text-left py-1 pr-2">Программа</th>
+                  <th className="text-center py-1 px-1">NPS</th>
+                  {csiFields.map(f => (
+                    <th key={f} className="text-center py-1 px-1">{CSI_LABELS[f].slice(0, 3)}.</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {programs.map(prog => (
+                  <tr key={prog} className="border-b border-gray-50">
+                    <td className="py-1.5 pr-2 font-medium text-gray-700 truncate max-w-[100px]" title={prog}>
+                      {prog.length > 12 ? prog.slice(0, 12) + '…' : prog}
+                    </td>
+                    <td className="py-1.5 px-1 text-center text-xs">{npsTrendIcon(prog)}</td>
+                    {csiFields.map(f => {
+                      const cur = avgCat(lastMo.key, f)
+                      const prev2 = avgCat(prevMo.key, f)
+                      // filter to this program
+                      const curP = (() => {
+                        const vals = comments.filter(c => c.program === prog && c.monthKey === lastMo.key && c[f] !== null && (c[f] as number) > 0).map(c => c[f] as number)
+                        return vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : null
+                      })()
+                      const prevP = (() => {
+                        const vals = comments.filter(c => c.program === prog && c.monthKey === prevMo.key && c[f] !== null && (c[f] as number) > 0).map(c => c[f] as number)
+                        return vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : null
+                      })()
+                      return <td key={f} className="py-1.5 px-1 text-center">{trendIcon(curP, prevP)}</td>
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div className="mt-2 text-xs text-gray-400">↑ рост &gt;0.2 · → стабильно · ↓ снижение</div>
+          </div>
+        </div>
+
+        {/* Рекомендации на основе всей базы */}
+        <div className="border border-blue-100 bg-blue-50 rounded-xl p-4">
+          <div className="text-xs font-semibold text-blue-600 uppercase tracking-wide mb-3">
+            Приоритеты на следующий месяц
+          </div>
+          {globalCsiRecs.length === 0 && globalThemes.length === 0 ? (
+            <div className="text-xs text-blue-400">Все показатели в норме</div>
+          ) : (
+            <div className="space-y-2.5">
+              {globalCsiRecs.map((rec, i) => (
+                <div key={i} className="flex gap-2">
+                  <span className="text-blue-400 flex-shrink-0 mt-0.5">→</span>
+                  <span className="text-xs text-blue-800">{rec}</span>
+                </div>
+              ))}
+              {globalThemes.slice(0, 3).map(theme => (
+                <div key={theme.id}>
+                  <div className="text-xs text-blue-600 font-medium mb-1">{theme.label}</div>
+                  {theme.recommendations.slice(0, 1).map((rec, i) => (
+                    <div key={i} className="flex gap-2">
+                      <span className="text-blue-400 flex-shrink-0 mt-0.5">→</span>
+                      <span className="text-xs text-blue-800">{rec}</span>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )
@@ -638,6 +966,9 @@ export default function NpsPage() {
                 </div>
               </div>
             )}
+
+            {/* Trends */}
+            <TrendsSection data={data} />
 
             {/* Comments */}
             <div>
