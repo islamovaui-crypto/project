@@ -190,3 +190,25 @@ model SyncLog {
 
   @@map("sync_logs")
 }
+
+model NpsResponse {
+  id           String    @id @default(cuid())
+  program      String
+  expert       String?
+  respondentId String?
+  answeredAt   DateTime?
+  name         String?
+  email        String?
+  lessons      Float?
+  live         Float?
+  curator      Float?
+  organization Float?
+  nps          Float?
+  comment      String?
+  reclassified Boolean   @default(false)
+  sourceFile   String?
+  importedAt   DateTime  @default(now())
+
+  @@unique([email, program])
+  @@map("nps_responses")
+}

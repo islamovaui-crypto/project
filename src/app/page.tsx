@@ -161,6 +161,7 @@ export default function Dashboard() {
       <header className="border-b border-gray-200 px-6 py-3 flex items-center justify-between gap-4">
         <div className="flex items-center gap-4 min-w-0">
           <h1 className="font-semibold text-gray-900 whitespace-nowrap">GC Dashboard</h1>
+          <a href="/nps" className="text-sm text-gray-400 hover:text-gray-700 border border-gray-200 hover:border-gray-400 px-3 py-1 rounded-lg transition-colors whitespace-nowrap">NPS & CSI</a>
           {activeTab === 'all' && (
             <MultiSelect
               options={products}
