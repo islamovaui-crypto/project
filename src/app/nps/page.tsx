@@ -127,39 +127,51 @@ const COMPLAINT_THEMES = [
   },
 ]
 
-type ThemeResult = { id: string; label: string; count: number; recommendations: string[] }
+type ThemeResult = { id: string; label: string; count: number; recommendations: string[]; quote: string | null }
 
-function detectThemes(comments: string[]): ThemeResult[] {
+function detectThemes(rows: Comment[]): ThemeResult[] {
+  const detractors = rows.filter(r => r.nps !== null && r.nps <= 6 && r.comment)
   const counts: Record<string, number> = {}
-  for (const text of comments) {
-    const t = text.toLowerCase()
+  const quotes: Record<string, string | null> = {}
+
+  for (const row of detractors) {
+    const t = row.comment.toLowerCase()
     for (const theme of COMPLAINT_THEMES) {
       if (theme.keywords.some(kw => t.includes(kw))) {
         counts[theme.id] = (counts[theme.id] || 0) + 1
+        if (!quotes[theme.id]) {
+          // Вытащить цитату вокруг ключевого слова
+          const kw = theme.keywords.find(k => t.includes(k))!
+          const idx = t.indexOf(kw)
+          const start = Math.max(0, idx - 15)
+          const end = Math.min(row.comment.length, idx + 90)
+          let snippet = row.comment.slice(start, end).trim()
+          if (start > 0) snippet = '…' + snippet
+          if (end < row.comment.length) snippet = snippet + '…'
+          quotes[theme.id] = snippet
+        }
       }
     }
   }
   return COMPLAINT_THEMES
     .filter(th => counts[th.id])
-    .map(th => ({ id: th.id, label: th.label, count: counts[th.id], recommendations: th.recommendations }))
+    .map(th => ({ id: th.id, label: th.label, count: counts[th.id], recommendations: th.recommendations, quote: quotes[th.id] ?? null }))
     .sort((a, b) => b.count - a.count)
 }
 
-function csiRecommendations(csiData: Record<CsiField, number | null>): string[] {
-  const recs: string[] = []
-  const fieldRecs: Record<CsiField, string> = {
-    lessons: `Уроки ниже нормы (${Math.round(CSI_NORMS.lessons * 100)}%) — пересмотреть качество и актуальность видеоматериалов`,
-    live: `Живые встречи ниже нормы (${Math.round(CSI_NORMS.live * 100)}%) — усилить качество и регулярность эфиров`,
-    curator: `Куратор ниже нормы (${Math.round(CSI_NORMS.curator * 100)}%) — провести работу по стандарту обратной связи`,
-    organization: `Организация ниже нормы (${Math.round(CSI_NORMS.organization * 100)}%) — улучшить структуру и навигацию продукта`,
+// Возвращает только категории ниже нормы, не покрытые темами из комментариев
+function csiGaps(csiData: Record<CsiField, number | null>, detectedThemeIds: string[]): { field: CsiField; label: string; value: number; norm: number }[] {
+  const themeToField: Partial<Record<string, CsiField>> = {
+    curator: 'curator', live: 'live', lessons: 'lessons', organization: 'organization',
   }
-  for (const field of Object.keys(CSI_NORMS) as CsiField[]) {
+  return (Object.keys(CSI_NORMS) as CsiField[]).flatMap(field => {
     const v = csiData[field]
-    if (v !== null && v / 10 < CSI_NORMS[field]) {
-      recs.push(fieldRecs[field])
-    }
-  }
-  return recs
+    if (v === null || v / 10 >= CSI_NORMS[field]) return []
+    // Если тема уже покрывает эту категорию — не дублировать
+    const covered = detectedThemeIds.some(id => themeToField[id] === field)
+    if (covered) return []
+    return [{ field, label: CSI_LABELS[field], value: Math.round(v * 10) / 10, norm: Math.round(CSI_NORMS[field] * 100) }]
+  })
 }
 
 function pct(v: number | null, digits = 0): string {
@@ -373,16 +385,15 @@ function CellDetailPanel({
   const promoterComments = curRows.filter(r => r.nps !== null && r.nps >= 9 && r.comment).slice(0, 3)
 
   // recommendations
-  const detractorTexts = curRows.filter(r => r.nps !== null && r.nps <= 6 && r.comment).map(r => r.comment)
-  const themes = detectThemes(detractorTexts)
+  const themes = detectThemes(curRows)
   const curCsiData: Record<CsiField, number | null> = {
     lessons: avgField(curRows, 'lessons'),
     live: avgField(curRows, 'live'),
     curator: avgField(curRows, 'curator'),
     organization: avgField(curRows, 'organization'),
   }
-  const csiRecs = csiRecommendations(curCsiData)
-  const hasRecs = themes.length > 0 || csiRecs.length > 0
+  const gaps = csiGaps(curCsiData, themes.map(t => t.id))
+  const hasRecs = themes.length > 0 || gaps.length > 0
 
   return (
     <div className="fixed inset-0 z-50 flex" onClick={onClose}>
@@ -509,25 +520,38 @@ function CellDetailPanel({
 
           {hasRecs && (
             <div>
-              <div className="text-xs font-semibold text-blue-600 uppercase tracking-wide mb-2">Что делать</div>
-              <div className="space-y-3">
-                {csiRecs.map((rec, i) => (
-                  <div key={i} className="flex gap-2">
-                    <span className="text-blue-400 mt-0.5 flex-shrink-0">→</span>
-                    <span className="text-xs text-gray-700">{rec}</span>
-                  </div>
-                ))}
+              <div className="text-xs font-semibold text-blue-600 uppercase tracking-wide mb-3">Что делать</div>
+              <div className="space-y-4">
                 {themes.map(theme => (
-                  <div key={theme.id}>
-                    <div className="text-xs text-gray-500 font-medium mb-1">
-                      {theme.label} <span className="text-gray-400">({theme.count} упом.)</span>
+                  <div key={theme.id} className="border-l-2 border-blue-200 pl-3">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-semibold text-gray-800">{theme.label}</span>
+                      <span className="text-xs text-red-400 ml-2 flex-shrink-0">{theme.count} {theme.count === 1 ? 'критик' : theme.count <= 4 ? 'критика' : 'критиков'}</span>
                     </div>
+                    {theme.quote && (
+                      <div className="text-xs text-gray-500 italic bg-gray-50 rounded px-2 py-1 mb-2 leading-snug">
+                        «{theme.quote}»
+                      </div>
+                    )}
                     {theme.recommendations.slice(0, 2).map((rec, i) => (
-                      <div key={i} className="flex gap-2 mb-1">
-                        <span className="text-blue-400 mt-0.5 flex-shrink-0">→</span>
+                      <div key={i} className="flex gap-1.5 mb-1">
+                        <span className="text-blue-400 flex-shrink-0">→</span>
                         <span className="text-xs text-gray-700">{rec}</span>
                       </div>
                     ))}
+                  </div>
+                ))}
+                {gaps.map(({ field, label, value, norm }) => (
+                  <div key={field} className="border-l-2 border-yellow-300 pl-3">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-xs font-semibold text-gray-800">{label}</span>
+                      <span className="text-xs text-yellow-600 bg-yellow-50 px-1.5 py-0.5 rounded">
+                        {value} из 10 · норма {norm}%
+                      </span>
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      Оценки ниже нормы, но жалобы не содержат явной причины — стоит провести короткий опрос или ретро с группой
+                    </div>
                   </div>
                 ))}
               </div>
@@ -550,6 +574,7 @@ function Matrix({
   colorFn,
   formatFn,
   onCellClick,
+  onTotalClick,
 }: {
   title: string
   programs: string[]
@@ -561,6 +586,7 @@ function Matrix({
   colorFn: (v: number | null) => string
   formatFn: (v: number | null) => string
   onCellClick?: (prog: string, monthKey: string, monthLabel: string) => void
+  onTotalClick?: (monthKey: string, monthLabel: string) => void
 }) {
   return (
     <div>
@@ -600,10 +626,15 @@ function Matrix({
             ))}
             <tr className="bg-blue-50 border-t-2 border-blue-200">
               <td className="px-4 py-2.5 sticky left-0 bg-blue-50 font-bold text-gray-700">Итого</td>
-              {months.map(({ key }) => {
+              {months.map(({ key, label }) => {
                 const v = getTotalByMonth(key)
+                const clickable = v !== null && onTotalClick
                 return (
-                  <td key={key} className={`px-3 py-2.5 text-center font-bold text-xs ${colorFn(v)}`}>
+                  <td
+                    key={key}
+                    onClick={() => clickable && onTotalClick(key, label)}
+                    className={`px-3 py-2.5 text-center font-bold text-xs ${colorFn(v)} ${clickable ? 'cursor-pointer hover:ring-2 hover:ring-inset hover:ring-blue-500' : ''}`}
+                  >
                     {formatFn(v)}
                   </td>
                 )
@@ -619,6 +650,180 @@ function Matrix({
   )
 }
 
+function MonthTotalPanel({ monthKey, monthLabel, data, onClose }: {
+  monthKey: string; monthLabel: string; data: NpsData; onClose: () => void
+}) {
+  const { programs, months, comments, npsMatrix, csiMatrix } = data
+  const monthIdx = months.findIndex(m => m.key === monthKey)
+  const prevMonth = monthIdx > 0 ? months[monthIdx - 1] : null
+
+  const moRows = comments.filter(c => c.monthKey === monthKey)
+  const prevRows = prevMonth ? comments.filter(c => c.monthKey === prevMonth.key) : []
+
+  const csiFields: CsiField[] = ['lessons', 'live', 'curator', 'organization']
+
+  function avgCatFor(rows: Comment[], field: CsiField) {
+    const vals = rows.map(r => r[field]).filter((v): v is number => v !== null && v > 0)
+    return vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : null
+  }
+
+  // NPS по программам за этот месяц, отсортировано
+  const progNps = programs
+    .map(prog => ({ prog, nps: npsMatrix[prog]?.[monthKey] ?? null }))
+    .filter(p => p.nps !== null)
+    .sort((a, b) => (b.nps ?? 0) - (a.nps ?? 0))
+
+  const moNPS = data.npsMonthTotal[monthKey] ?? null
+  const prevNPS = prevMonth ? (data.npsMonthTotal[prevMonth.key] ?? null) : null
+  const npsDelta = moNPS !== null && prevNPS !== null ? Math.round((moNPS - prevNPS) * 100) : null
+
+  // Темы жалоб за этот месяц
+  const themes = detectThemes(moRows)
+
+  // CSI по категориям
+  const curCsi = Object.fromEntries(csiFields.map(f => [f, avgCatFor(moRows, f)])) as Record<CsiField, number | null>
+  const prevCsi = prevMonth ? Object.fromEntries(csiFields.map(f => [f, avgCatFor(prevRows, f)])) as Record<CsiField, number | null> : null
+
+  const totalResponses = moRows.length
+  const detractors = moRows.filter(r => r.nps !== null && r.nps <= 6).length
+  const promoters = moRows.filter(r => r.nps !== null && r.nps >= 9).length
+
+  function DeltaBadge({ d }: { d: number | null }) {
+    if (d === null) return null
+    const sign = d > 0 ? '+' : ''
+    const color = d > 0 ? 'text-green-500' : d < 0 ? 'text-red-500' : 'text-gray-400'
+    return <span className={`text-xs font-semibold ml-1.5 ${color}`}>{sign}{d.toFixed(d % 1 === 0 ? 0 : 1)}</span>
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex" onClick={onClose}>
+      <div className="flex-1" />
+      <div className="w-[480px] bg-white border-l border-gray-200 overflow-y-auto shadow-xl flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="px-5 py-4 border-b border-gray-100 flex items-start justify-between">
+          <div>
+            <div className="font-semibold text-gray-900 text-sm">Итого · {monthLabel}</div>
+            <div className="text-xs text-gray-400 mt-0.5">все программы · {totalResponses} ответов</div>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-lg leading-none mt-0.5">✕</button>
+        </div>
+
+        <div className="px-5 py-4 space-y-5">
+          {/* Общий NPS */}
+          <div>
+            <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">NPS за месяц</div>
+            <div className="flex items-center gap-3 mb-3">
+              <span className={`text-2xl font-bold px-3 py-1 rounded-lg ${npsColor(moNPS)}`}>
+                {moNPS !== null ? `${Math.round(moNPS * 100)}%` : '—'}
+              </span>
+              {prevNPS !== null && (
+                <span className="text-sm text-gray-400">
+                  было {Math.round(prevNPS * 100)}%
+                  <DeltaBadge d={npsDelta} />
+                </span>
+              )}
+            </div>
+            <div className="flex gap-4 text-xs text-gray-500">
+              <span><span className="font-semibold text-green-600">{promoters}</span> промоутеров</span>
+              <span><span className="font-semibold text-red-500">{detractors}</span> критиков</span>
+              <span><span className="font-semibold text-gray-600">{totalResponses - promoters - detractors}</span> нейтральных</span>
+            </div>
+          </div>
+
+          {/* NPS по программам */}
+          <div>
+            <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">По программам</div>
+            <div className="space-y-1.5">
+              {progNps.map(({ prog, nps }) => {
+                const prevProgNPS = prevMonth ? (npsMatrix[prog]?.[prevMonth.key] ?? null) : null
+                const d = nps !== null && prevProgNPS !== null ? Math.round((nps - prevProgNPS) * 100) : null
+                return (
+                  <div key={prog} className="flex items-center gap-2">
+                    <span className="text-xs text-gray-600 w-32 truncate" title={prog}>{prog}</span>
+                    <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                      <div className={`h-full rounded-full ${nps! >= 0.7 ? 'bg-green-400' : nps! >= 0.5 ? 'bg-yellow-300' : 'bg-red-400'}`}
+                        style={{ width: `${Math.max(0, nps! * 100)}%` }} />
+                    </div>
+                    <span className={`text-xs font-bold w-10 text-right ${npsColor(nps).split(' ')[1]}`}>{Math.round(nps! * 100)}%</span>
+                    {d !== null && <span className={`text-xs font-semibold w-10 ${d > 0 ? 'text-green-500' : d < 0 ? 'text-red-500' : 'text-gray-400'}`}>{d > 0 ? '+' : ''}{d}%</span>}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* CSI */}
+          <div>
+            <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">CSI по категориям</div>
+            <div className="space-y-2">
+              {csiFields.map(field => {
+                const v = curCsi[field]
+                const pv = prevCsi?.[field] ?? null
+                const d = v !== null && pv !== null ? v - pv : null
+                const pctVal = v !== null ? v / 10 : null
+                const belowNorm = pctVal !== null && pctVal < CSI_NORMS[field]
+                return (
+                  <div key={field} className="flex items-center gap-2">
+                    <span className="text-xs text-gray-500 w-24">{CSI_LABELS[field]}</span>
+                    <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                      <div className={`h-full rounded-full ${pctVal !== null && pctVal >= 0.88 ? 'bg-green-400' : pctVal !== null && pctVal >= 0.82 ? 'bg-yellow-300' : 'bg-red-400'}`}
+                        style={{ width: `${pctVal !== null ? pctVal * 100 : 0}%` }} />
+                    </div>
+                    <span className={`text-xs font-semibold w-8 text-right ${belowNorm ? 'text-red-500' : 'text-gray-700'}`}>
+                      {v !== null ? v.toFixed(1) : '—'}
+                    </span>
+                    {d !== null && <span className={`text-xs font-semibold w-8 ${d > 0.1 ? 'text-green-500' : d < -0.1 ? 'text-red-500' : 'text-gray-400'}`}>{d > 0 ? '+' : ''}{d.toFixed(1)}</span>}
+                    {belowNorm && <span className="text-xs text-red-400">↓ норма {Math.round(CSI_NORMS[field] * 100)}%</span>}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Темы жалоб */}
+          {themes.length > 0 && (
+            <div>
+              <div className="text-xs font-semibold text-red-500 uppercase tracking-wide mb-2">Что критикуют</div>
+              <div className="space-y-3">
+                {themes.map(theme => (
+                  <div key={theme.id} className="border-l-2 border-red-200 pl-3">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-semibold text-gray-800">{theme.label}</span>
+                      <span className="text-xs text-red-400">{theme.count} {theme.count === 1 ? 'критик' : theme.count <= 4 ? 'критика' : 'критиков'}</span>
+                    </div>
+                    {theme.quote && (
+                      <div className="text-xs text-gray-500 italic bg-gray-50 rounded px-2 py-1 mb-1.5 leading-snug">«{theme.quote}»</div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Рекомендации */}
+          {themes.length > 0 && (
+            <div>
+              <div className="text-xs font-semibold text-blue-600 uppercase tracking-wide mb-3">Что делать</div>
+              <div className="space-y-3">
+                {themes.slice(0, 3).map(theme => (
+                  <div key={theme.id} className="border-l-2 border-blue-200 pl-3">
+                    <div className="text-xs font-semibold text-gray-700 mb-1">{theme.label}</div>
+                    {theme.recommendations.slice(0, 2).map((rec, i) => (
+                      <div key={i} className="flex gap-1.5 mb-1">
+                        <span className="text-blue-400 flex-shrink-0">→</span>
+                        <span className="text-xs text-gray-700">{rec}</span>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function TrendsSection({ data }: { data: NpsData }) {
   const { programs, months, comments, npsMatrix, csiMatrix } = data
   if (months.length < 2) return null
@@ -629,10 +834,8 @@ function TrendsSection({ data }: { data: NpsData }) {
   type MonthThemes = Record<string, Set<string>> // monthKey → set of theme ids
   const themesByMonth: MonthThemes = {}
   for (const mo of months) {
-    const detTexts = comments
-      .filter(c => c.monthKey === mo.key && c.nps !== null && c.nps <= 6 && c.comment)
-      .map(c => c.comment)
-    const detected = detectThemes(detTexts)
+    const moComments = comments.filter(c => c.monthKey === mo.key)
+    const detected = detectThemes(moComments)
     themesByMonth[mo.key] = new Set(detected.map(t => t.id))
   }
   const repeatingThemes = COMPLAINT_THEMES.filter(th =>
@@ -672,15 +875,14 @@ function TrendsSection({ data }: { data: NpsData }) {
   }
 
   // Общие рекомендации по всей базе
-  const allDetTexts = comments.filter(c => c.nps !== null && c.nps <= 6 && c.comment).map(c => c.comment)
-  const globalThemes = detectThemes(allDetTexts)
+  const globalThemes = detectThemes(comments)
   const lastMoCsi: Record<CsiField, number | null> = {
     lessons: avgCat(lastMo.key, 'lessons'),
     live: avgCat(lastMo.key, 'live'),
     curator: avgCat(lastMo.key, 'curator'),
     organization: avgCat(lastMo.key, 'organization'),
   }
-  const globalCsiRecs = csiRecommendations(lastMoCsi)
+  const globalGaps = csiGaps(lastMoCsi, globalThemes.map(t => t.id))
 
   return (
     <div className="space-y-6">
@@ -764,25 +966,27 @@ function TrendsSection({ data }: { data: NpsData }) {
           <div className="text-xs font-semibold text-blue-600 uppercase tracking-wide mb-3">
             Приоритеты на следующий месяц
           </div>
-          {globalCsiRecs.length === 0 && globalThemes.length === 0 ? (
+          {globalGaps.length === 0 && globalThemes.length === 0 ? (
             <div className="text-xs text-blue-400">Все показатели в норме</div>
           ) : (
-            <div className="space-y-2.5">
-              {globalCsiRecs.map((rec, i) => (
-                <div key={i} className="flex gap-2">
-                  <span className="text-blue-400 flex-shrink-0 mt-0.5">→</span>
-                  <span className="text-xs text-blue-800">{rec}</span>
-                </div>
-              ))}
+            <div className="space-y-3">
               {globalThemes.slice(0, 3).map(theme => (
-                <div key={theme.id}>
-                  <div className="text-xs text-blue-600 font-medium mb-1">{theme.label}</div>
+                <div key={theme.id} className="border-l-2 border-blue-300 pl-2">
+                  <div className="text-xs text-blue-700 font-semibold mb-1">
+                    {theme.label} <span className="font-normal text-blue-400">· {theme.count} упом.</span>
+                  </div>
                   {theme.recommendations.slice(0, 1).map((rec, i) => (
-                    <div key={i} className="flex gap-2">
-                      <span className="text-blue-400 flex-shrink-0 mt-0.5">→</span>
+                    <div key={i} className="flex gap-1.5">
+                      <span className="text-blue-400 flex-shrink-0">→</span>
                       <span className="text-xs text-blue-800">{rec}</span>
                     </div>
                   ))}
+                </div>
+              ))}
+              {globalGaps.map(({ field, label, value, norm }) => (
+                <div key={field} className="flex gap-2">
+                  <span className="text-yellow-500 flex-shrink-0">→</span>
+                  <span className="text-xs text-blue-800">{label}: {value}/10 (норма {norm}%) — провести ретро с группой</span>
                 </div>
               ))}
             </div>
@@ -800,6 +1004,7 @@ export default function NpsPage() {
   const [commentFilter, setCommentFilter] = useState({ program: '', month: '', type: '' })
   const [showComments, setShowComments] = useState(true)
   const [selectedCell, setSelectedCell] = useState<SelectedCell | null>(null)
+  const [monthTotal, setMonthTotal] = useState<{ monthKey: string; monthLabel: string } | null>(null)
   const [chartMode, setChartMode] = useState<'by-month' | 'by-product'>('by-month')
   const [chartProduct, setChartProduct] = useState('')
   const [importing, setImporting] = useState(false)
@@ -914,6 +1119,7 @@ export default function NpsPage() {
               colorFn={npsColor}
               formatFn={pct}
               onCellClick={(prog, key, label) => setSelectedCell({ prog, monthKey: key, monthLabel: label, focus: 'nps' })}
+              onTotalClick={(key, label) => setMonthTotal({ monthKey: key, monthLabel: label })}
             />
 
             {/* CSI matrix */}
@@ -928,6 +1134,7 @@ export default function NpsPage() {
               colorFn={csiColor}
               formatFn={pct}
               onCellClick={(prog, key, label) => setSelectedCell({ prog, monthKey: key, monthLabel: label, focus: 'csi' })}
+              onTotalClick={(key, label) => setMonthTotal({ monthKey: key, monthLabel: label })}
             />
 
             {/* Bar chart */}
@@ -1088,6 +1295,14 @@ export default function NpsPage() {
           cell={selectedCell}
           data={data}
           onClose={() => setSelectedCell(null)}
+        />
+      )}
+      {monthTotal && data && (
+        <MonthTotalPanel
+          monthKey={monthTotal.monthKey}
+          monthLabel={monthTotal.monthLabel}
+          data={data}
+          onClose={() => setMonthTotal(null)}
         />
       )}
     </div>
