@@ -628,12 +628,12 @@ function Matrix({
               <td className="px-4 py-2.5 sticky left-0 bg-blue-50 font-bold text-gray-700">Итого</td>
               {months.map(({ key, label }) => {
                 const v = getTotalByMonth(key)
-                const clickable = v !== null && onTotalClick
+                const isClickable = v !== null && !!onTotalClick
                 return (
                   <td
                     key={key}
-                    onClick={() => clickable && onTotalClick(key, label)}
-                    className={`px-3 py-2.5 text-center font-bold text-xs ${colorFn(v)} ${clickable ? 'cursor-pointer hover:ring-2 hover:ring-inset hover:ring-blue-500' : ''}`}
+                    onClick={isClickable ? () => onTotalClick!(key, label) : undefined}
+                    className={`px-3 py-2.5 text-center font-bold text-xs ${colorFn(v)} ${isClickable ? 'cursor-pointer select-none hover:brightness-95' : ''}`}
                   >
                     {formatFn(v)}
                   </td>
