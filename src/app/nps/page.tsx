@@ -85,27 +85,59 @@ function typeLabel(t: string | null) {
   return '—'
 }
 
-function NpsBarChart({ data, months, programs, npsMatrix }: {
-  data: NpsData
+const BAR_COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899']
+
+// Mode: "by-month" — all products grouped by month; "by-product" — one product, bars = months
+function NpsBarChart({ months, programs, npsMatrix, mode, selectedProgram }: {
   months: MonthEntry[]
   programs: string[]
   npsMatrix: Record<string, Record<string, number | null>>
+  mode: 'by-month' | 'by-product'
+  selectedProgram: string
 }) {
-  const BAR_COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899']
-  const W = 600
-  const H = 200
-  const PAD = { top: 20, right: 20, bottom: 40, left: 44 }
+  const W = 640
+  const LEGEND_H = 28
+  const chartH = 160
+  const PAD = { top: 16, right: 20, bottom: 28, left: 44 }
+  const H = PAD.top + chartH + PAD.bottom + LEGEND_H
   const chartW = W - PAD.left - PAD.right
-  const chartH = H - PAD.top - PAD.bottom
 
   if (months.length === 0) return null
 
-  const groupW = chartW / months.length
-  const barW = Math.min(24, (groupW - 8) / Math.max(programs.length, 1))
+  // Build bars data
+  type Bar = { label: string; value: number | null; color: string }
+  type Group = { groupLabel: string; bars: Bar[] }
+  let groups: Group[] = []
+
+  if (mode === 'by-month') {
+    groups = months.map(({ key, label }) => ({
+      groupLabel: label,
+      bars: programs.map((prog, pi) => ({
+        label: prog,
+        value: npsMatrix[prog]?.[key] ?? null,
+        color: BAR_COLORS[pi % BAR_COLORS.length],
+      })),
+    }))
+  } else {
+    // one product across all months
+    const prog = selectedProgram || programs[0]
+    groups = months.map(({ key, label }) => ({
+      groupLabel: label,
+      bars: [{ label: prog, value: npsMatrix[prog]?.[key] ?? null, color: BAR_COLORS[0] }],
+    }))
+  }
+
+  const groupW = chartW / Math.max(groups.length, 1)
+  const barsPerGroup = mode === 'by-month' ? programs.length : 1
+  const barW = Math.min(32, (groupW - 8) / Math.max(barsPerGroup, 1))
+
+  const legendItems = mode === 'by-month'
+    ? programs.map((p, i) => ({ label: p, color: BAR_COLORS[i % BAR_COLORS.length] }))
+    : []
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ maxHeight: 220 }}>
-      {/* Y axis lines and labels */}
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ maxHeight: H }}>
+      {/* Y gridlines */}
       {[0, 25, 50, 75, 100].map(v => {
         const y = PAD.top + chartH - (v / 100) * chartH
         return (
@@ -115,41 +147,49 @@ function NpsBarChart({ data, months, programs, npsMatrix }: {
           </g>
         )
       })}
+
       {/* Bars */}
-      {months.map(({ key, label }, mi) => {
-        const groupX = PAD.left + mi * groupW + groupW / 2
-        const groupStartX = groupX - (programs.length * barW) / 2
+      {groups.map(({ groupLabel, bars }, gi) => {
+        const groupCenterX = PAD.left + gi * groupW + groupW / 2
+        const groupStartX = groupCenterX - (bars.length * barW) / 2
         return (
-          <g key={key}>
-            {programs.map((prog, pi) => {
-              const v = npsMatrix[prog]?.[key]
-              if (v === null || v === undefined) return null
-              const pctVal = Math.max(0, v * 100)
-              const barH = (pctVal / 100) * chartH
-              const x = groupStartX + pi * barW
-              const y = PAD.top + chartH - barH
+          <g key={gi}>
+            {bars.map((bar, bi) => {
+              if (bar.value === null) return null
+              const pctVal = Math.max(0, bar.value * 100)
+              const bh = (pctVal / 100) * chartH
+              const x = groupStartX + bi * barW
+              const y = PAD.top + chartH - bh
               return (
-                <g key={prog}>
-                  <rect x={x} y={y} width={barW - 2} height={barH} fill={BAR_COLORS[pi % BAR_COLORS.length]} rx="2" opacity="0.85" />
-                  {barH > 16 && (
-                    <text x={x + barW / 2 - 1} y={y + 12} textAnchor="middle" fontSize="9" fill="white" fontWeight="bold">
+                <g key={bi}>
+                  <rect x={x} y={y} width={barW - 3} height={bh} fill={bar.color} rx="3" opacity="0.88" />
+                  {bh > 16 && (
+                    <text x={x + (barW - 3) / 2} y={y + 12} textAnchor="middle" fontSize="9" fill="white" fontWeight="bold">
                       {Math.round(pctVal)}
                     </text>
                   )}
                 </g>
               )
             })}
-            <text x={groupX} y={H - 6} textAnchor="middle" fontSize="10" fill="#6B7280">{label}</text>
+            <text x={groupCenterX} y={PAD.top + chartH + 16} textAnchor="middle" fontSize="10" fill="#6B7280">{groupLabel}</text>
           </g>
         )
       })}
-      {/* Legend */}
-      {programs.slice(0, 6).map((prog, pi) => (
-        <g key={prog} transform={`translate(${PAD.left + pi * 100}, ${H - PAD.bottom + 22})`}>
-          <rect width="10" height="10" fill={BAR_COLORS[pi % BAR_COLORS.length]} rx="2" />
-          <text x="14" y="9" fontSize="9" fill="#6B7280">{prog.length > 12 ? prog.slice(0, 12) + '…' : prog}</text>
-        </g>
-      ))}
+
+      {/* Legend (only in by-month mode) */}
+      {legendItems.length > 0 && (() => {
+        const itemW = 110
+        const totalW = legendItems.length * itemW
+        const startX = (W - totalW) / 2
+        return legendItems.map((item, i) => (
+          <g key={item.label} transform={`translate(${startX + i * itemW}, ${PAD.top + chartH + PAD.bottom + 6})`}>
+            <rect width="10" height="10" fill={item.color} rx="2" y="0" />
+            <text x="14" y="9" fontSize="9" fill="#6B7280">
+              {item.label.length > 13 ? item.label.slice(0, 13) + '…' : item.label}
+            </text>
+          </g>
+        ))
+      })()}
     </svg>
   )
 }
@@ -233,6 +273,8 @@ export default function NpsPage() {
   const [loading, setLoading] = useState(true)
   const [commentFilter, setCommentFilter] = useState({ program: '', month: '', type: '' })
   const [showComments, setShowComments] = useState(true)
+  const [chartMode, setChartMode] = useState<'by-month' | 'by-product'>('by-month')
+  const [chartProduct, setChartProduct] = useState('')
   const [importing, setImporting] = useState(false)
   const [importResult, setImportResult] = useState<string | null>(null)
 
@@ -362,13 +404,35 @@ export default function NpsPage() {
             {/* Bar chart */}
             {data.months.length > 0 && (
               <div>
-                <h2 className="text-sm font-semibold text-gray-700 mb-3">График NPS по месяцам</h2>
+                <div className="flex items-center gap-3 mb-3">
+                  <h2 className="text-sm font-semibold text-gray-700">График NPS</h2>
+                  <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs">
+                    <button
+                      onClick={() => setChartMode('by-month')}
+                      className={`px-3 py-1.5 transition-colors ${chartMode === 'by-month' ? 'bg-blue-500 text-white' : 'text-gray-500 hover:bg-gray-50'}`}
+                    >По месяцам</button>
+                    <button
+                      onClick={() => setChartMode('by-product')}
+                      className={`px-3 py-1.5 transition-colors border-l border-gray-200 ${chartMode === 'by-product' ? 'bg-blue-500 text-white' : 'text-gray-500 hover:bg-gray-50'}`}
+                    >По продукту</button>
+                  </div>
+                  {chartMode === 'by-product' && (
+                    <select
+                      value={chartProduct || data.programs[0]}
+                      onChange={e => setChartProduct(e.target.value)}
+                      className="border border-gray-200 rounded-lg px-2 py-1 text-xs text-gray-700 focus:outline-none focus:border-blue-500"
+                    >
+                      {data.programs.map(p => <option key={p} value={p}>{p}</option>)}
+                    </select>
+                  )}
+                </div>
                 <div className="border border-gray-200 rounded-xl p-4 bg-white">
                   <NpsBarChart
-                    data={data}
                     months={data.months}
                     programs={data.programs}
                     npsMatrix={data.npsMatrix}
+                    mode={chartMode}
+                    selectedProgram={chartProduct || data.programs[0]}
                   />
                 </div>
               </div>
