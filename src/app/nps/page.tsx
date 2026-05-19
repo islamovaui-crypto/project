@@ -194,6 +194,195 @@ function NpsBarChart({ months, programs, npsMatrix, mode, selectedProgram }: {
   )
 }
 
+interface SelectedCell { prog: string; monthKey: string; monthLabel: string }
+
+function CellDetailPanel({
+  cell,
+  data,
+  onClose,
+}: {
+  cell: SelectedCell
+  data: NpsData
+  onClose: () => void
+}) {
+  const { prog, monthKey, monthLabel } = cell
+
+  // find previous month
+  const monthIdx = data.months.findIndex(m => m.key === monthKey)
+  const prevMonth = monthIdx > 0 ? data.months[monthIdx - 1] : null
+
+  function rowsFor(mo: string) {
+    return data.comments.filter(c => c.program === prog && c.monthKey === mo)
+  }
+
+  function npsBreakdown(rows: Comment[]) {
+    const withNps = rows.filter(r => r.nps !== null)
+    const promoters = withNps.filter(r => r.nps! >= 9)
+    const passives = withNps.filter(r => r.nps! >= 7 && r.nps! <= 8)
+    const detractors = withNps.filter(r => r.nps! <= 6)
+    const n = withNps.length
+    return { promoters, passives, detractors, n }
+  }
+
+  function avgField(rows: Comment[], field: keyof Pick<Comment, 'lessons' | 'live' | 'curator' | 'organization'>) {
+    const vals = rows.map(r => r[field]).filter((v): v is number => v !== null && v > 0)
+    return vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : null
+  }
+
+  const curRows = rowsFor(monthKey)
+  const prevRows = prevMonth ? rowsFor(prevMonth.key) : []
+  const cur = npsBreakdown(curRows)
+  const prev = prevMonth ? npsBreakdown(prevRows) : null
+
+  const csiFields: (keyof Pick<Comment, 'lessons' | 'live' | 'curator' | 'organization'>)[] = ['lessons', 'live', 'curator', 'organization']
+  const csiLabels: Record<string, string> = { lessons: 'Уроки', live: 'Живые', curator: 'Куратор', organization: 'Организация' }
+
+  function delta(cur: number | null, prev: number | null) {
+    if (cur === null || prev === null) return null
+    return cur - prev
+  }
+
+  function DeltaBadge({ d, unit = '' }: { d: number | null; unit?: string }) {
+    if (d === null) return null
+    const sign = d > 0 ? '+' : ''
+    const color = d > 0 ? 'text-green-600' : d < 0 ? 'text-red-500' : 'text-gray-400'
+    return <span className={`text-xs font-semibold ml-1 ${color}`}>{sign}{d.toFixed(unit ? 1 : 0)}{unit}</span>
+  }
+
+  const curNPS = data.npsMatrix[prog]?.[monthKey] ?? null
+  const prevNPS = prevMonth ? (data.npsMatrix[prog]?.[prevMonth.key] ?? null) : null
+  const npsDelta = delta(curNPS !== null ? curNPS * 100 : null, prevNPS !== null ? prevNPS * 100 : null)
+
+  // top detractors with comments
+  const detractorComments = curRows.filter(r => r.nps !== null && r.nps <= 6 && r.comment).slice(0, 3)
+  const promoterComments = curRows.filter(r => r.nps !== null && r.nps >= 9 && r.comment).slice(0, 3)
+
+  return (
+    <div className="fixed inset-0 z-50 flex" onClick={onClose}>
+      <div className="flex-1" />
+      <div
+        className="w-[480px] bg-white border-l border-gray-200 overflow-y-auto shadow-xl flex flex-col"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="px-5 py-4 border-b border-gray-100 flex items-start justify-between">
+          <div>
+            <div className="font-semibold text-gray-900 text-sm">{prog}</div>
+            <div className="text-xs text-gray-400 mt-0.5">{monthLabel}{prevMonth ? ` vs ${prevMonth.label}` : ''}</div>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-lg leading-none mt-0.5">✕</button>
+        </div>
+
+        <div className="px-5 py-4 space-y-5 flex-1">
+          {/* NPS summary */}
+          <div>
+            <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">NPS</div>
+            <div className="flex items-center gap-3 mb-3">
+              <span className={`text-2xl font-bold px-3 py-1 rounded-lg ${npsColor(curNPS)}`}>
+                {curNPS !== null ? `${Math.round(curNPS * 100)}%` : '—'}
+              </span>
+              {prevNPS !== null && (
+                <span className="text-sm text-gray-400">
+                  было {Math.round(prevNPS * 100)}%
+                  <DeltaBadge d={npsDelta} unit="%" />
+                </span>
+              )}
+              <span className="text-xs text-gray-400 ml-auto">{cur.n} отв.</span>
+            </div>
+
+            {/* Promoter/passive/detractor bars */}
+            {cur.n > 0 && (
+              <div className="space-y-1.5">
+                {[
+                  { label: 'Промоутеры (9–10)', count: cur.promoters.length, prevCount: prev?.promoters.length ?? null, color: 'bg-green-400' },
+                  { label: 'Нейтральные (7–8)', count: cur.passives.length, prevCount: prev?.passives.length ?? null, color: 'bg-yellow-300' },
+                  { label: 'Критики (0–6)', count: cur.detractors.length, prevCount: prev?.detractors.length ?? null, color: 'bg-red-400' },
+                ].map(({ label, count, prevCount, color }) => {
+                  const pct2 = cur.n > 0 ? Math.round(count / cur.n * 100) : 0
+                  const prevPct = prev && prev.n > 0 && prevCount !== null ? Math.round(prevCount / prev.n * 100) : null
+                  const d = prevPct !== null ? pct2 - prevPct : null
+                  return (
+                    <div key={label}>
+                      <div className="flex items-center justify-between mb-0.5">
+                        <span className="text-xs text-gray-600">{label}</span>
+                        <span className="text-xs font-semibold text-gray-700">
+                          {count} ({pct2}%)
+                          {prevPct !== null && <DeltaBadge d={d} unit="%" />}
+                        </span>
+                      </div>
+                      <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                        <div className={`h-full ${color} rounded-full transition-all`} style={{ width: `${pct2}%` }} />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* CSI breakdown */}
+          <div>
+            <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">CSI по категориям</div>
+            <div className="space-y-2">
+              {csiFields.map(field => {
+                const cur2 = avgField(curRows, field)
+                const prev2 = prevRows.length > 0 ? avgField(prevRows, field) : null
+                const d = delta(cur2, prev2)
+                const pctVal = cur2 !== null ? cur2 / 10 : null
+                return (
+                  <div key={field} className="flex items-center gap-2">
+                    <span className="text-xs text-gray-500 w-24">{csiLabels[field]}</span>
+                    <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full ${pctVal !== null && pctVal >= 0.88 ? 'bg-green-400' : pctVal !== null && pctVal >= 0.82 ? 'bg-yellow-300' : 'bg-red-400'}`}
+                        style={{ width: `${pctVal !== null ? pctVal * 100 : 0}%` }}
+                      />
+                    </div>
+                    <span className="text-xs font-semibold text-gray-700 w-10 text-right">
+                      {cur2 !== null ? cur2.toFixed(1) : '—'}
+                    </span>
+                    {d !== null && <DeltaBadge d={d} />}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* What's driving decline */}
+          {detractorComments.length > 0 && (
+            <div>
+              <div className="text-xs font-semibold text-red-500 uppercase tracking-wide mb-2">Причины снижения (критики)</div>
+              <div className="space-y-2">
+                {detractorComments.map(c => (
+                  <div key={c.id} className="bg-red-50 rounded-lg px-3 py-2">
+                    <div className="text-xs text-red-700 leading-snug">{c.comment}</div>
+                    <div className="text-xs text-red-400 mt-1">{c.name || c.email} · NPS {c.nps}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* What's driving growth */}
+          {promoterComments.length > 0 && (
+            <div>
+              <div className="text-xs font-semibold text-green-600 uppercase tracking-wide mb-2">Причины роста (промоутеры)</div>
+              <div className="space-y-2">
+                {promoterComments.map(c => (
+                  <div key={c.id} className="bg-green-50 rounded-lg px-3 py-2">
+                    <div className="text-xs text-green-800 leading-snug">{c.comment}</div>
+                    <div className="text-xs text-green-500 mt-1">{c.name || c.email} · NPS {c.nps}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function Matrix({
   title,
   programs,
@@ -204,6 +393,7 @@ function Matrix({
   grandTotal,
   colorFn,
   formatFn,
+  onCellClick,
 }: {
   title: string
   programs: string[]
@@ -214,6 +404,7 @@ function Matrix({
   grandTotal: number | null
   colorFn: (v: number | null) => string
   formatFn: (v: number | null) => string
+  onCellClick?: (prog: string, monthKey: string, monthLabel: string) => void
 }) {
   return (
     <div>
@@ -230,13 +421,18 @@ function Matrix({
             </tr>
           </thead>
           <tbody>
-            {programs.map((prog, i) => (
+            {programs.map((prog) => (
               <tr key={prog} className="border-b border-gray-100 hover:bg-gray-50">
                 <td className="px-4 py-2.5 sticky left-0 bg-white font-medium text-gray-700 truncate max-w-[200px]" title={prog}>{prog}</td>
-                {months.map(({ key }) => {
+                {months.map(({ key, label }) => {
                   const v = getCellValue(prog, key)
+                  const clickable = v !== null && onCellClick
                   return (
-                    <td key={key} className={`px-3 py-2.5 text-center font-semibold text-xs ${colorFn(v)}`}>
+                    <td
+                      key={key}
+                      onClick={() => clickable && onCellClick(prog, key, label)}
+                      className={`px-3 py-2.5 text-center font-semibold text-xs ${colorFn(v)} ${clickable ? 'cursor-pointer hover:ring-2 hover:ring-inset hover:ring-blue-400 hover:z-10 relative' : ''}`}
+                    >
                       {formatFn(v)}
                     </td>
                   )
@@ -273,6 +469,7 @@ export default function NpsPage() {
   const [loading, setLoading] = useState(true)
   const [commentFilter, setCommentFilter] = useState({ program: '', month: '', type: '' })
   const [showComments, setShowComments] = useState(true)
+  const [selectedCell, setSelectedCell] = useState<SelectedCell | null>(null)
   const [chartMode, setChartMode] = useState<'by-month' | 'by-product'>('by-month')
   const [chartProduct, setChartProduct] = useState('')
   const [importing, setImporting] = useState(false)
@@ -386,6 +583,7 @@ export default function NpsPage() {
               grandTotal={data.grandNPS}
               colorFn={npsColor}
               formatFn={pct}
+              onCellClick={(prog, key, label) => setSelectedCell({ prog, monthKey: key, monthLabel: label })}
             />
 
             {/* CSI matrix */}
@@ -399,6 +597,7 @@ export default function NpsPage() {
               grandTotal={data.grandCSI}
               colorFn={csiColor}
               formatFn={pct}
+              onCellClick={(prog, key, label) => setSelectedCell({ prog, monthKey: key, monthLabel: label })}
             />
 
             {/* Bar chart */}
@@ -550,6 +749,14 @@ export default function NpsPage() {
           </>
         )}
       </main>
+
+      {selectedCell && data && (
+        <CellDetailPanel
+          cell={selectedCell}
+          data={data}
+          onClose={() => setSelectedCell(null)}
+        />
+      )}
     </div>
   )
 }
